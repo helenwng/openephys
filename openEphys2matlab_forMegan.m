@@ -63,14 +63,22 @@ epocOff = eventIdx(events==epocCH&~info.eventId&info.eventType==3);
 epocOn = epocOn(ismember(epocOn,1:length(dataTime)));
 epocOff = epocOff(ismember(epocOff,1:length(dataTime)));
 
+% downsample to 1000Hz to save memory
+LN              = length(dataTime);
+div             = dataInfo(1).header.sampleRate/1000;
+zx              = 1:div:LN;
+izx             = floor(zx);
+time      = dataTime(izx);    % downsample from 20000 hz to 1000 hz
+% epocOn = epocOn(izx);
+% epocOff = epocOff(izx);
+
 if epocOn(1)<epocOff(1)
-    if size(epocOn)==size(epocOff)
+    if size(epocOn,1 )> size(epocOff,1)   % if experiment got cut off in middle of trial...
+        epocOn = epocOn(1:size(epocOff,1));         % ...drop the last trial
+    end
+    if size(epocOn) == size(epocOff)
         field_trials = [epocOn epocOff];
         trials = [dataTime(epocOn) dataTime(epocOff)];    % find and ismember in case of corrupted files
-    else
-        if size(epocOn,1) > size(epocOff,1)     % if experiment got cut off in middle of trial...
-            epocOn = epocOn(1:size(epocOff,1));         % ...drop the last trial
-        end
     end
     for i = 1:length(epocOn)
         if i<=length(epocOff)
