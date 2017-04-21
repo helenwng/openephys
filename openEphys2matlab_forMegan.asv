@@ -59,20 +59,12 @@ encdB = zeros(size(dataTime));
 epocOn = eventIdx(events==epocCH&info.eventId&info.eventType==3);
 epocOff = eventIdx(events==epocCH&~info.eventId&info.eventType==3);
 
-%in case of corrupted files:
-epocOn = epocOn(ismember(epocOn,1:length(dataTime)));
-epocOff = epocOff(ismember(epocOff,1:length(dataTime)));
-
 if epocOn(1)<epocOff(1)
     if size(epocOn)==size(epocOff)
         field_trials = [epocOn epocOff];
-        trials = [dataTime(epocOn) dataTime(epocOff)];    % find and ismember in case of corrupted files
-    else
-        if size(epocOn,1) > size(epocOff,1)     % if experiment got cut off in middle of trial...
-            epocOn = epocOn(1:size(epocOff,1));         % ...drop the last trial
-        end
+        trials = [dataTime(epocOn(ismember(epocOn,1:length(dataTime)))) dataTime(epocOff(find(ismember(epocOff,1:length(dataTime)))))'];    % find and ismember in case of corrupted files
     end
-    for i = 1:length(epocOn)
+    for i = 1:size(trials,1)
         if i<=length(epocOff)
             epoc(epocOn(i):epocOff(i)) = ones(size(epocOn(i):epocOff(i)));
         else
