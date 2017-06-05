@@ -25,7 +25,12 @@ function openEphys2matlab(exp_path)
 %todo - initialize channels w/ size info
 
 %load electrode channels
-contfile = fullfile(exp_path,'100_CH1.continuous');
+first_half = exist(fullfile(exp_path,'100_CH1.continuous'),'file');
+if first_half
+    contfile = fullfile(exp_path,'100_CH1.continuous');
+else
+    contfile = fullfile(exp_path,'100_CH65.continuous');
+end
 [~, dataTime, dataInfo] = load_open_ephys_data(contfile);
 % dataTime = dataTime./dataInfo(1).header.sampleRate;       % uncomment if using load_open_ephys_data_faster
 nsamples = length(dataTime);
@@ -40,6 +45,14 @@ eventfile = fullfile(exp_path,'all_channels.events')
 [events,eventTime,info] = load_open_ephys_data_faster(eventfile);
  amp_sr = info.header.sampleRate;
  eventIdx = floor((eventTime-dataTime(1))*amp_sr+1);
+% for i = 1:length(eventTime)                           % only use when timing between events and continuous files are off
+%     [~,eventIdx(i)] = min(abs(dataTime-eventTime(i))); 
+% end
+
+%  % check:
+% [dataTime(eventIdx(1:20)) eventTime(1:20)]
+% dataTime(eventIdx(nsamples-10:nsamples))
+% eventTime(nsamples-10:nsamples)
 
 %define digital channels (subtract 1 from label on i/o boards)
 epocCH = 0;
@@ -60,15 +73,15 @@ epocOn = eventIdx(events==epocCH&info.eventId&info.eventType==3);
 epocOff = eventIdx(events==epocCH&~info.eventId&info.eventType==3);
 
 %in case of corrupted files:
-epocOn = epocOn(ismember(epocOn,1:length(dataTime)));
-epocOff = epocOff(ismember(epocOff,1:length(dataTime)));
+epocOn = epocOn(ismember(epocOn,1:nsamples));
+epocOff = epocOff(ismember(epocOff,1:nsamples));
 
 % downsample to 1000Hz to save memory
-LN              = length(dataTime);
-div             = dataInfo(1).header.sampleRate/1000;
+LN              = nsamples;
+div             = amp_sr/1000;
 zx              = 1:div:LN;
 izx             = floor(zx);
-time      = dataTime(izx);    % downsample from 20000 hz to 1000 hz
+time_index      = dataTime(izx)-dataTime(1);    % downsample from 20000 hz to 1000 hz
 % epocOn = epocOn(izx);
 % epocOff = epocOff(izx);
 
@@ -88,6 +101,9 @@ if epocOn(1)<epocOff(1)
         end
     end
 end
+
+%downsample field_trials for Megan's code:
+field_trials =  floor(field_trials./20)+1;
 
 %find encdA on and off times and fill out binary vector same size as data
 encdAOn = eventIdx(events==encdACH&info.eventId&info.eventType==3);
@@ -137,13 +153,13 @@ else
 end
 
 %getSyncTimes for "re"
-[re,x]= getSyncTimesRevCorr_AC(photo',(1/amp_sr));
+[re]= getSyncTimesRevCorr_AC(photo',(1/amp_sr));
 
 %todo - write code for when recording starts during a trial ->
 %epocOff(1)<epocOn(1)
 
 %save variables in data.mat
 cd(exp_path)
-save('data.mat', 'trials','field_trials','amp_sr','photo','LED','epoc','encdA','encdB','re')
+save('data.mat', 'trials','field_trials','amp_sr','photo','LED','epoc','encdA','encdB','re','time_index')
 
 end
