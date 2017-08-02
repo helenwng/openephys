@@ -120,6 +120,7 @@ numIdx = floor((filesize - NUM_HEADER_BYTES)/sum(blockBytes));
 switch filetype
     case '.events'
         timestamps = segRead('timestamps')./info.header.sampleRate;
+%         timestamps = segRead('timestamps')./20000;
         info.sampleNum = segRead('sampleNum');
         info.eventType = segRead('eventType');
         info.nodeId = segRead('nodeId');
