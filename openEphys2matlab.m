@@ -1,6 +1,6 @@
 function openEphys2matlab(exp_path)
 %extracts info from open Ephys files
-%hard coded for 32 channel for now - to do: write code to detect all
+%to do: write code to detect all
 %continuous files in exp_path, separate aux and electrodes and load all
 %channels
 
@@ -23,6 +23,13 @@ function openEphys2matlab(exp_path)
     
 
 %todo - initialize channels w/ size info
+cd(exp_path)
+filenames = dir;
+filenames = {filenames.name};
+nchs = length(cell2mat(strfind(filenames,'CH')));       % number of files with 'CH' in file name (i.e. continuous channel files)
+where_adcs = cellfun(@(x) ~isempty(x), strfind(filenames,'ADC'));
+adcfiles = filenames(where_adcs);       % in case you aren't just using ADC inputs 1 and 2
+nADC = length(adcfiles);      % number of files with 'ADC' in file name (i.e. analog input files)
 
 %load electrode channels
 first_half = exist(fullfile(exp_path,'100_CH1.continuous'),'file');
@@ -31,17 +38,17 @@ if first_half
 else
     contfile = fullfile(exp_path,'100_CH65.continuous');
 end
-[~, dataTime, dataInfo] = load_open_ephys_data(contfile);
-% dataTime = dataTime./dataInfo(1).header.sampleRate;       % uncomment if using load_open_ephys_data_faster
+[~, dataTime, dataInfo] = load_open_ephys_data_faster(contfile);
+dataTime = dataTime./dataInfo(1).header.sampleRate;       % uncomment if using load_open_ephys_data_faster
 nsamples = length(dataTime);
 
 %load ADC inputs
-for i = 1:2
-    [ADCin(i,:),~,ADCinfo(i,:)] = load_open_ephys_data(fullfile(exp_path,sprintf('100_ADC%d.continuous',i)));
+for i = 1:nADC
+    [ADCin(i,:),~,ADCinfo(i,:)] = load_open_ephys_data_faster(fullfile(exp_path,adcfiles{i}));
 end
 
 %load all_channels.events
-eventfile = fullfile(exp_path,'all_channels.events')
+eventfile = fullfile(exp_path,'all_channels.events');
 [events,eventTime,info] = load_open_ephys_data_faster(eventfile);
  amp_sr = info.header.sampleRate;
  eventIdx = floor((eventTime-dataTime(1))*amp_sr+1);
