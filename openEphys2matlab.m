@@ -44,8 +44,9 @@ nsamples = length(dataTime);
 
 %load ADC inputs
 for i = 1:nADC
-    [ADCin(i,:),~,ADCinfo(i,:)] = load_open_ephys_data_faster(fullfile(exp_path,adcfiles{i}));
+    [ADCin(i,:),ADCTime(i,:),ADCinfo(i,:)] = load_open_ephys_data_faster(fullfile(exp_path,adcfiles{i}));
 end
+ADCTime = ADCTime./ADCinfo(1).header.sampleRate;
 
 %load all_channels.events
 eventfile = fullfile(exp_path,'all_channels.events');
@@ -61,6 +62,24 @@ eventfile = fullfile(exp_path,'all_channels.events');
 % dataTime(eventIdx(nsamples-10:nsamples))
 % eventTime(nsamples-10:nsamples)
 
+% in case of weird event where analog and data file lengths don't match
+if size(ADCin,2)~=nsamples
+    warning('Amplifier and analog data file lengths dont match.')
+    shorter = min(nsamples,size(ADCin,2));
+    err = (dataTime(shorter)-ADCTime(1,shorter)')*1000;
+    disp(strcat('Difference (in ms) from end of data and analog time vectors:',num2str(err)))
+    aa = input('Force them to be same length? Y/N: ','s');
+    if strcmp(aa,'Y')
+        ADCin = ADCin(:,1:shorter);
+        nsamples = shorter;
+        dataTime = dataTime(1:shorter);
+        disp('Forcing analog and data vectors to be same length')
+    else
+        error('Amplifier and analog data file lengths dont match.')
+    end
+end
+clear ADCTime
+
 %define digital channels (subtract 1 from label on i/o boards)
 epocCH = 0;
 encdACH = 1;
@@ -69,6 +88,7 @@ encdBCH = 2;
 %define analog channels
 photo = ADCin(1,:);
 LED = ADCin(2,:);
+clear ADCin
 
 %digital events
 epoc = zeros(size(dataTime));
@@ -89,6 +109,7 @@ div             = amp_sr/1000;
 zx              = 1:div:LN;
 izx             = floor(zx);
 time_index      = dataTime(izx)-dataTime(1);    % downsample from 20000 hz to 1000 hz
+clear izx zx
 % epocOn = epocOn(izx);
 % epocOff = epocOff(izx);
 

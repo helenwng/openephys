@@ -26,13 +26,15 @@ function [unitinfo,FRs,tuning,waveforms] = unit_analysis_opto(unit,field_trials,
 plot_rast = 1;      % raster plot
 plot_psthV = 1;     % psth of visual trials
 plot_psthB = 1;     % psth of blank trials
-plot_rasterZ = 0;     % plot zoomed in visual trialpsth
+plot_rasterZ = 1;     % plot zoomed in visual trial psth
 plot_psthPref = 0;  % psth of preferred orientation trials
-plot_run = 0;       % bar graph of running v. stationary
+plot_psthPrefSFTF = 0;  % psth of trials at preferred SF and TF
+plot_psthstdSFTF = 0;  % psth of trials at standard SF (.04) and TF (2Hz)
+plot_run = 1;       % bar graph of running v. stationary
 plot_FRs = 1;       % bar graph of firing rates at different trial points
 plot_ori = 1;       % orientation tuning curve
-plot_SF = 1;        % bar plot of FR at diff spatial frequencies
-plot_TF = 1;        % bar plot of FR at diff temporal frequencies
+plot_SF = 0;        % bar plot of FR at diff spatial frequencies
+plot_TF = 0;        % bar plot of FR at diff temporal frequencies
 plot_waveforms = 1; % plot the unit's waveform
 
 
@@ -41,6 +43,7 @@ plot_waveforms = 1; % plot the unit's waveform
 exp_name = params.exp_name;         % e.g. 'T22_ramp'
 exp_type = params.exp_type;
 amp_sr = params.amp_sr;
+nchs = params.nchs;
 trial_type = params.trial_type;     % nxm matrix, n=number of trials, m=number of IVs
 IVs = params.IVs;                   % independent variables
 prestim_ms = params.prestim*1000;
@@ -50,6 +53,7 @@ total_time_ms = prestim_ms+stimtime_ms+poststim_ms;
 onset_ms = params.onset*1000;               % amount of time from start of visual stimulus considered "onset"
 all_light = params.all_light;
 pulse_dur = params.pulse_dur(find(params.pulse_dur))*1000;       % duration of light pulse in ms (only different from lighttime during trains experiments
+light_dur = params.light_dur(find(params.light_dur))*1000;       % duration of light pulse in ms (only different from lighttime during trains experiments
 lighttime = params.lighttime*1000;       % duration of light stimulation in ms(e.g. 1sec)
 av_light_start = params.av_light_start*1000;     % average time the light turned on across trials (in ms)
 
@@ -61,18 +65,13 @@ spike_raster = make_raster(unit_times_ds,field_trials,1000,total_time_ms/1000); 
 %% count spikes during periods of interest
 disp('Counting spikes...')
 num_trials = size(field_trials,1);
-spikes_all = sum(spike_raster,2);       % total number of spikes per trial
+window = round([max(av_light_start)+1 max(av_light_start)+lighttime]); % analyze common time window b/w light conditions w/ diff start times
+
 spikes_prestim = sum(spike_raster(:,1:prestim_ms),2);
-if length(unique(av_light_start))>1
-    for l = 1:length(av_light_start)
-        spikes_ev(:,l) = sum(spike_raster(:,av_light_start(l)+1:av_light_start(l)+lighttime),2);
-    end
-else
-    spikes_ev = sum(spike_raster(:,av_light_start(1)+1:av_light_start(1)+lighttime),2);
-end
-spikes_ev_half = sum(spike_raster(:,av_light_start(1)+1:av_light_start(1)+lighttime/2),2);      % currently using first av_light_start time as default
-spikes_ev_lighton = sum(spike_raster(:,av_light_start(1)+1:av_light_start(1)+onset_ms),2);      % currently using first av_light_start time as default
-spikes_ev_early = sum(spike_raster(:,av_light_start(1)+onset_ms+1:av_light_start(1)+lighttime/2),2);    % from 100ms after light onset to halfway through light duration (currently using first av_light_start time as default)
+spikes_ev = sum(spike_raster(:,window(1):window(2)),2);
+spikes_ev_half = sum(spike_raster(:,window(1):window(1)-1+lighttime/2),2);      % currently using first av_light_start time as default
+spikes_ev_lighton = sum(spike_raster(:,window(1):window(1)-1+onset_ms),2);      % currently using first av_light_start time as default
+spikes_ev_early = sum(spike_raster(:,window(1)+onset_ms:window(1)-1+lighttime/2),2);    % from 100ms after light onset to halfway through light duration (currently using first av_light_start time as default)
 spikes_onset = sum(spike_raster(:,prestim_ms+1:prestim_ms+onset_ms),2);
 
 %% Calculate important firing rates
@@ -89,38 +88,46 @@ lightconds = unique(trial_type(:,lightvar));     % get different levels of light
 
 % calculate FRs for VISUAL and BLANK trials separately at each light
 % condition
+% 10/31/17: change to stationary trials only
 for i = 1:length(lightconds)                  % get firing rate, across all other variables
-    [spikerate_prestim(i), spikerateSE_prestim(i)] = calc_firing_rates(spikes_prestim,find(trial_type(:,lightvar) == lightconds(i)),params.prestim); 
-    [spikerate_onset(i), spikerateSE_onset(i)] = calc_firing_rates(spikes_onset,find(trial_type(:,lightvar) == lightconds(i)),params.onset);
-    [spikerate_visual(:,i), spikerateSE_visual(:,i)] = calc_firing_rates(spikes_ev,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)),params.lighttime);
-    [spikerate_visual_half(i), spikerateSE_visual_half(i)] = calc_firing_rates(spikes_ev_half,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)),params.lighttime/2);
-    [spikerate_visual_lighton(i), spikerateSE_visual_lighton(i)] = calc_firing_rates(spikes_ev_lighton,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)),params.onset);
-    [spikerate_visual_early(i), spikerateSE_visual_early(i)] = calc_firing_rates(spikes_ev_early,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)),params.lighttime/2-params.onset);
-    [spikerate_blank(:,i), spikerateSE_blank(:,i)] = calc_firing_rates(spikes_ev,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)),params.lighttime);
-    [spikerate_blank_half(i), spikerateSE_blank_half(i)] = calc_firing_rates(spikes_ev_half,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)),params.lighttime/2);
-    [spikerate_blank_lighton(i), spikerateSE_blank_lighton(i)] = calc_firing_rates(spikes_ev_lighton,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)),params.onset);
-    [spikerate_blank_early(i), spikerateSE_blank_early(i)] = calc_firing_rates(spikes_ev_early,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)),params.lighttime/2-params.onset);
+    [spikerate_prestim(i), spikerateSE_prestim(i)] = calc_firing_rates(spikes_prestim,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,runvar)==0)),params.prestim); 
+    [spikerate_onset(i), spikerateSE_onset(i)] = calc_firing_rates(spikes_onset,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,runvar)==0)),params.onset);
+    if find(strcmp(IVs,'s_freq'))               % TEMPORARY - if SF/TF experiment, "spikerate_visual" vals are for standard SF=.04, TF=2Hz ONLY
+        SFvar = find(strcmp(IVs,'s_freq'));
+        TFvar = find(strcmp(IVs,'t_period'));
+        [spikerate_visual(:,i), spikerateSE_visual(:,i)] = calc_firing_rates(spikes_ev,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)&(trial_type(:,SFvar)==.04)&(trial_type(:,TFvar)==30)),params.lighttime);
+        [spikerate_visual_half(i), spikerateSE_visual_half(i)] = calc_firing_rates(spikes_ev_half,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)&(trial_type(:,SFvar)==.04)&(trial_type(:,TFvar)==30)),params.lighttime/2);
+        [spikerate_visual_lighton(i), spikerateSE_visual_lighton(i)] = calc_firing_rates(spikes_ev_lighton,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)&(trial_type(:,SFvar)==.04)&(trial_type(:,TFvar)==30)),params.onset);
+        [spikerate_visual_early(i), spikerateSE_visual_early(i)] = calc_firing_rates(spikes_ev_early,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)&(trial_type(:,SFvar)==.04)&(trial_type(:,TFvar)==30)),params.lighttime/2-params.onset);
+    else
+        [spikerate_visual(:,i), spikerateSE_visual(:,i)] = calc_firing_rates(spikes_ev,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)),params.lighttime);
+        [spikerate_visual_half(i), spikerateSE_visual_half(i)] = calc_firing_rates(spikes_ev_half,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)),params.lighttime/2);
+        [spikerate_visual_lighton(i), spikerateSE_visual_lighton(i)] = calc_firing_rates(spikes_ev_lighton,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)),params.onset);
+        [spikerate_visual_early(i), spikerateSE_visual_early(i)] = calc_firing_rates(spikes_ev_early,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)<=360)&(trial_type(:,runvar)==0)),params.lighttime/2-params.onset);
+    end
+    [spikerate_blank(:,i), spikerateSE_blank(:,i)] = calc_firing_rates(spikes_ev,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)&(trial_type(:,runvar)==0)),params.lighttime);
+    [spikerate_blank_half(i), spikerateSE_blank_half(i)] = calc_firing_rates(spikes_ev_half,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)&(trial_type(:,runvar)==0)),params.lighttime/2);
+    [spikerate_blank_lighton(i), spikerateSE_blank_lighton(i)] = calc_firing_rates(spikes_ev_lighton,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)&(trial_type(:,runvar)==0)),params.onset);
+    [spikerate_blank_early(i), spikerateSE_blank_early(i)] = calc_firing_rates(spikes_ev_early,find((trial_type(:,lightvar) == lightconds(i))&(trial_type(:,orivar)>360)&(trial_type(:,runvar)==0)),params.lighttime/2-params.onset);
 
 end
 
 % if SF and TF conditions
 if find(strcmp(IVs,'s_freq'))
-    SFvar = find(strcmp(IVs,'s_freq'));
     SFs = unique(trial_type(:,SFvar));
     SFs = SFs(SFs<999);
     for i = 1:length(SFs)
         for ii = 1:length(lightconds)
-            [SF_FR(i,ii) SF_FR_SE(i,ii)] = calc_firing_rates(spikes_ev(:,1),find((trial_type(:,lightvar)==lightconds(ii))&(trial_type(:,SFvar)==SFs(i))),params.lighttime);     % in case of multiple start times, using evoked firing rate from FIRST start time condition
+            [SF_FR(i,ii) SF_FR_SE(i,ii)] = calc_firing_rates(spikes_ev(:,1),find((trial_type(:,lightvar)==lightconds(ii))&(trial_type(:,SFvar)==SFs(i))&(trial_type(:,runvar)==0)),params.lighttime);     % in case of multiple start times, using evoked firing rate from FIRST start time condition; only in STATIONARY trials
         end
     end
 end
 if find(strcmp(IVs,'t_period'))
-    TFvar = find(strcmp(IVs,'t_period'));
     TFs = unique(trial_type(:,TFvar));
     TFs = TFs(TFs<999);
     for i = 1:length(TFs)
         for ii = 1:length(lightconds)
-            [TF_FR(i,ii) TF_FR_SE(i,ii)] = calc_firing_rates(spikes_ev(:,1),find((trial_type(:,lightvar)==lightconds(ii))&(trial_type(:,TFvar)==TFs(i))),params.lighttime);         % in case of multiple start times, using evoked firing rate from FIRST start time condition
+            [TF_FR(i,ii) TF_FR_SE(i,ii)] = calc_firing_rates(spikes_ev(:,1),find((trial_type(:,lightvar)==lightconds(ii))&(trial_type(:,TFvar)==TFs(i))&(trial_type(:,runvar)==0)),params.lighttime);         % in case of multiple start times, using evoked firing rate from FIRST start time condition; only in STATIONARY trials
         end
     end
 end
@@ -156,7 +163,9 @@ for lc = 1:length(lightconds)
     tuning_curve(lc,:) = spikerate_bycond(oriinds,lc,runconds==0);
     tuning_curve_norm(lc,:) = spikerate_bycond_norm(oriinds,lc,runconds==0);          % baseline subtracted
     tuning_curveSE(lc,:) = spikerateSE_bycond(oriinds,lc,runconds==0);
-    [OSI(lc),OSI_CV(lc),DSI(lc),DSI_CV(lc)] = calcOSIDSI(tuning_curve(lc,:),oris');       % using only STATIONARY trials (NOT baseline-subtracted, but check whether this is correct!!!!)
+    if sum(oriconds<=360) > 1
+        [OSI(lc),OSI_CV(lc),DSI(lc),DSI_CV(lc)] = calcOSIDSI(tuning_curve(lc,:),oris');       % using only STATIONARY trials (NOT baseline-subtracted, but check whether this is correct!!!!)
+    end
 end
 
 %% get PSTHs
@@ -170,11 +179,13 @@ edges = [0:binsize:total_time_ms/1000];      % in sec
 
 %% get waveform information
 disp('Getting waveform information...')
-exp_path = cd;          % assuming CD was set in intan_unit_master
-if exist(sprintf('Cluster_%s_waveforms.mat',num2str(unit)),'file');
-    load(sprintf('Cluster_%s_waveforms.mat',num2str(unit)));
+exp_path = cd;          % assuming CD was set in analysis_master
+if ~isempty(rez)
+    [waveforms_microV,max_ch,shank] = readWaveformsFromRez(unit,exp_path,rez);      % default to read waveforms from Rez
+elseif exist(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)),'file');
+    load(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)));
 else
-    [waveforms_microV,max_ch,shank] = readWaveformsFromRez(unit,exp_path,rez);
+    % still need to make compatible with old phy-sorted data
 end
 
 % determine layer
@@ -185,10 +196,6 @@ else
     layers = importdata('layers.mat');
 end
 layer = layers(max_ch);           %TEMP +1
-
-% get trough-to-peak time, trough-to-peak ratio, and
-% full-width-half-maximum
-[t2p_t,t2p_r,fwhm] = get_waveform_props(waveforms_microV,amp_sr);
 
 
 %% save results
@@ -212,10 +219,12 @@ FRs.baselinedef = normalizing;
 % tuning stuff
 tuning.curve = tuning_curve;
 tuning.normcurve = tuning_curve_norm;
-tuning.OSI = OSI;
-tuning.OSI_CV = OSI_CV;
-tuning.DSI = DSI;
-tuning.DSI_CV = DSI_CV;
+if sum(oriconds<=360) > 1
+    tuning.OSI = OSI;
+    tuning.OSI_CV = OSI_CV;
+    tuning.DSI = DSI;
+    tuning.DSI_CV = DSI_CV;
+end
 if find(strcmp(IVs,'s_freq'))
     tuning.SF = [SF_FR; SF_FR_SE];
 end
@@ -234,9 +243,6 @@ unitinfo.rast = spike_raster;
 waveforms.microV = waveforms_microV;
 waveforms.shank = shank;
 waveforms.max_ch = max_ch;
-waveforms.t2p_t = t2p_t;
-waveforms.t2p_r = t2p_r;
-waveforms.fwhm = fwhm;
     
 
 %% plot stuff!
@@ -288,8 +294,8 @@ if makeplots
         subplot(yy,xx,count_plots)
         binsize = .025;         % 25 ms
     %     binsize = .05;
-        make_psth_plot_v2(psthV,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.pulse_dur);
-        title('PSTH plot - visual trials','FontSize',14)
+        make_psth_plot_v2(psthV,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur);
+        title('PSTH - visual trials','FontSize',14)
         set(gca,'FontSize',14);
         count_plots = count_plots+1;
     end
@@ -297,8 +303,8 @@ if makeplots
     % PSTH - blank trials
     if plot_psthB
         subplot(yy,xx,count_plots)
-        make_psth_plot_v2(psthB,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.pulse_dur);
-        title('PSTH plot - blank trials','FontSize',14)
+        make_psth_plot_v2(psthB,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur);
+        title('PSTH - blank trials','FontSize',14)
         set(gca,'FontSize',14);
         count_plots = count_plots+1;
     end
@@ -306,8 +312,7 @@ if makeplots
     % raster - zoom
     if plot_rasterZ
         subplot(yy,xx,count_plots)
-        make_raster_plot_v2(spike_raster,params.prestim,total_time_ms/1000,all_light,params.av_light_start,params.pulse_dur)
-        xlim([.4 .8])
+        make_raster_plot_v2(spike_raster(:,min(av_light_start)-100:min(av_light_start)+299),-.4,length(min(av_light_start)-100:min(av_light_start)+299)/1000,all_light,[.1 .1 .1],params.pulse_dur)
         title('Raster plot (zoom)','FontSize',14)
         set(gca,'FontSize',14);
         count_plots = count_plots+1;
@@ -316,9 +321,32 @@ if makeplots
     % PSTH - preferred orientation trials
     if plot_psthPref
         subplot(yy,xx,count_plots)
-        [~,pref_ori] = max(tuning_curve(1,:));
-        FRs.psth_pref = make_psth_plot_vs(binsize,spike_raster,ismember(1:num_trials,find(trial_type(:,orivar)==oriconds(pref_ori))),params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.pulse_dur); % make PSTH from trials with preferred orientation only
-        title('PSTH plot - Preferred Orientation','FontSize',14)
+        [~,pref_ori] = max(abs(tuning_curve_norm(1,:)));    % 'preferred orientation' = maximum change from baseline (i.e., not just ori with largest FR)
+        [~,psthP] = make_psth_v2(binsize,edges,ismember(1:num_trials,find(trial_type(:,orivar)==oriconds(pref_ori))),spike_raster,all_light);
+        make_psth_plot_v2(psthP,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur); % make PSTH from trials with preferred orientation only
+        title('PSTH - Preferred Orientation','FontSize',14)
+        set(gca,'FontSize',14);
+        count_plots = count_plots+1;
+    end
+    
+    % PSTH - preferred SF and TF trials
+    if plot_psthPrefSFTF
+        subplot(yy,xx,count_plots)
+        [~,pref_SF] = max(abs(SF_FR(:,1) - repmat(baseline,size(SF_FR,1),1))); 
+        [~,pref_TF] = max(abs(TF_FR(:,1) - repmat(baseline,size(SF_FR,1),1))); 
+        [~,psthPsftf] = make_psth_v2(binsize,edges,ismember(1:num_trials,find((trial_type(:,SFvar)==SFs(pref_SF))&(trial_type(:,TFvar)==TFs(pref_TF)))),spike_raster,all_light);
+        make_psth_plot_v2(psthPsftf,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur); % make PSTH from trials with preferred orientation only
+        title('PSTH - Preferred SF&TF','FontSize',14)
+        set(gca,'FontSize',14);
+        count_plots = count_plots+1;
+    end
+    
+    % PSTH - standard SF and TF trials
+    if plot_psthstdSFTF
+        subplot(yy,xx,count_plots)
+        [~,psthstd] = make_psth_v2(binsize,edges,ismember(1:num_trials,find((trial_type(:,SFvar)==.04)&(trial_type(:,TFvar)==30))),spike_raster,all_light);
+        make_psth_plot_v2(psthstd,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur); % make PSTH from trials with preferred orientation only
+        title('PSTH - Standard SF&TF','FontSize',14)
         set(gca,'FontSize',14);
         count_plots = count_plots+1;
     end
@@ -327,13 +355,8 @@ if makeplots
     if plot_run
         subplot(yy,xx,count_plots)
         for lc = 1:length(lightconds)
-            if lightconds(lc)
-                [spikerate_run(lc) spikerateSE_run(lc)] = calc_firing_rates(spikes_ev(:,1),intersect(run_trials,light_trials{lc-1}),lighttime);     % TEMP - 2nd column for iC++ exps
-                [spikerate_stat(lc) spikerateSE_stat(lc)] = calc_firing_rates(spikes_ev(:,1),intersect(stat_trials,light_trials{lc-1}),lighttime);
-            else
-                [spikerate_run(lc) spikerateSE_run(lc)] = calc_firing_rates(spikes_ev(:,1),intersect(run_trials,nolight_trials),lighttime);
-                [spikerate_stat(lc) spikerateSE_stat(lc)] = calc_firing_rates(spikes_ev(:,1),intersect(stat_trials,nolight_trials),lighttime);
-            end
+            [spikerate_run(lc) spikerateSE_run(lc)] = calc_firing_rates(spikes_ev(:,1),find(trial_type(:,runvar)==1&trial_type(:,lightvar)==lightconds(lc)),params.lighttime);     % TEMP - 2nd column for iC++ exps
+            [spikerate_stat(lc) spikerateSE_stat(lc)] = calc_firing_rates(spikes_ev(:,1),find(trial_type(:,runvar)==0&trial_type(:,lightvar)==lightconds(lc)),params.lighttime);
         end
         runbar = bargraph([spikerate_run; spikerate_stat],...
             [spikerateSE_run; spikerateSE_stat]);
@@ -345,6 +368,8 @@ if makeplots
         title('Firing rate - running vs. stationary','FontSize',14)
         legend off
         set(gca,'FontSize',14);
+        xax = get(gca,'xtick');
+        xlim([xax(1)-.5 xax(end)+.5])
         count_plots = count_plots+1;
     end
     
@@ -379,6 +404,8 @@ if makeplots
         end
         title('Firing rate','FontSize',14)
         legend off
+         xax = get(gca,'xtick');
+        xlim([xax(1)-.5 xax(end)+.5])
         count_plots = count_plots+1;
     end
     
@@ -414,13 +441,21 @@ if makeplots
     % SF
     if plot_SF
         subplot(yy,xx,count_plots)
-        evokedbar = bargraph(SF_FR,SF_FR_SE);
-        set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
-        set(gca,'XTicklabel',num2str(SFs),'Fontsize',10)
-        for i = 1:length(lightconds)
-                set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
-        end
-        title('Firing rate','FontSize',14)
+        
+         for lc = 1:length(lightconds)
+            shadedErrorBar(SFs,SF_FR(:,lc)'-repmat(baseline,1,size(SF_FR,1)),SF_FR_SE(:,lc)',{'Color',color_mat(lc,:),'linewidth',2},1);  % plot ori tuning in NO RUN trials (NOT baseline-subtracted)
+            hold on
+         end
+         ylabel('Firing rate (Hz)','FontSize',14)
+        xlabel('SF (cpd)','FontSize',14)
+        
+%         evokedbar = bargraph(SF_FR,SF_FR_SE);
+%         set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
+%         set(gca,'XTicklabel',num2str(SFs),'Fontsize',10)
+%         for i = 1:length(lightconds)
+%                 set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
+%         end
+        title('SF tuning','FontSize',14)
         legend off
         count_plots = count_plots+1;
     end
@@ -429,13 +464,21 @@ if makeplots
     % TF
     if plot_TF
         subplot(yy,xx,count_plots)
-        evokedbar = bargraph(TF_FR,TF_FR_SE);
-        set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
-        set(gca,'XTicklabel',num2str(TFs),'Fontsize',10)
-        for i = 1:length(lightconds)
-                set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
-        end
-        title('Firing rate','FontSize',14)
+        
+        for lc = 1:length(lightconds)
+            shadedErrorBar(60./TFs,TF_FR(:,lc)'-repmat(baseline,1,size(TF_FR,1)),TF_FR_SE(:,lc)',{'Color',color_mat(lc,:),'linewidth',2},1);  % plot ori tuning in NO RUN trials (NOT baseline-subtracted)
+            hold on
+         end
+         ylabel('Firing rate (Hz)','FontSize',14)
+        xlabel('TF (Hz)','FontSize',14)
+        
+%         evokedbar = bargraph(TF_FR,TF_FR_SE);
+%         set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
+%         set(gca,'XTicklabel',num2str(TFs),'Fontsize',10)
+%         for i = 1:length(lightconds)
+%                 set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
+%         end
+        title('TF tuning','FontSize',14)
         legend off
         count_plots = count_plots+1;
     end

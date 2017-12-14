@@ -26,14 +26,14 @@ lightconds = unique(all_light_trials);      % different light conditions
 xlim([-prestim totaltime-prestim-binsize])  % because points mark the START of the bin
 set(gca,'XMinorTick','on')
 yax = get(gca,'YLim');
-line([0 0], [0 yax(2)]','Color','r','LineWidth',2)
-line([stimtime stimtime], [0 yax(2)]','Color','r','LineWidth',2)
+line([0 0], [0 yax(2)]','Color','r','LineStyle','--','LineWidth',2)
+% line([stimtime stimtime], [0 yax(2)]','Color','r','LineWidth',2)
 xlabel('Time (sec)','fontsize',14)
 ylabel('spikes/sec','Fontsize',14)
 
 % draw when light turned on and off
 if length(lightconds)>1         % if multiple light conditions
-    if length(unique(light_start)) >1   % if multiple different light start times, dotted lines to indicate diff start times
+    if length(unique(light_start)) >1  || length(unique(round(light_dur.*1000))) > 2 % if multiple different light start times or duration times, dotted lines to indicate diff start times
         for ii = 1:length(light_start)
             line([light_start(ii)-prestim light_start(ii)-prestim], [0 yax(2)]','Color',color_mat(ii+1,:),'LineStyle','--','LineWidth',2)
             line([light_start(ii)-prestim+light_dur(ii+sum(lightconds==0)) light_start(ii)-prestim+light_dur(ii+sum(lightconds==0))], [0 yax(2)]','Color',color_mat(ii+1,:),'LineStyle','--','LineWidth',2)
@@ -44,8 +44,9 @@ if length(lightconds)>1         % if multiple light conditions
             patch_start(c) = edges_stim(find(x1(c)-edges_stim>0,1,'last'));     % in case light doesn't evenly start at the beginning of a bin - start the light patch at the earliest bin with any light in it
             xx = [patch_start(c) patch_start(c) patch_start(c)+light_dur(c+sum(lightconds==0)) patch_start(c)+light_dur(c+sum(lightconds==0)) patch_start(c)];
             yy = [0 yax(2) yax(2) 0 0];
-            patch(xx, yy, -1 * ones(size(xx)), [0.9 0.9 0.9], 'LineStyle', 'none')
+            patch(xx, yy, -1 * ones(size(xx)), [0.8 0.8 0.9], 'LineStyle', 'none')
         end
     end
 end
+ylim(yax)
     

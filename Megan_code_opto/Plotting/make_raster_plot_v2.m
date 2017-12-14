@@ -16,6 +16,7 @@ num_trials = size(spike_raster,1);
 time_vec = linspace(-prestim,totaltime-prestim,size(spike_raster,2));      % for x-axis 
 cond_colors = ones(1,num_trials);      % just in case you have multiple conditions
 
+
 % if light experiment, add blue shading on raster
 if length(unique(light_trialtypes)) > 1         % it was an opto experiment if there's more than one "light" condition (one condition would be nolight)
     [cond,idx] = sort(light_trialtypes);    % sort trials by light conditions
@@ -35,10 +36,12 @@ if length(unique(light_trialtypes)) > 1         % it was an opto experiment if t
         if sum(diff_conds>10)         % if it was a trains experiment
             for p = 1:(light_trialtypes(idx(end_patch)))
                 space = 1/(light_trialtypes(idx(end_patch)));
-                patch([x1(c-1)+((p-1)*space) x1(c-1)+((p-1)*space) x1(c-1)+pulse_dur(c)+((p-1)*space) x1(c-1)+pulse_dur(c)+((p-1)*space) x1(c-1)+((p-1)*space)],[start_patch end_patch end_patch start_patch start_patch], [0.9 0.9 0.9], 'LineStyle', 'none')
+%                 if (p-1)*space < (totaltime-prestim-x1(c-1))
+                    patch([x1(c-1)+((p-1)*space) x1(c-1)+((p-1)*space) x1(c-1)+pulse_dur(c)+((p-1)*space) x1(c-1)+pulse_dur(c)+((p-1)*space) x1(c-1)+((p-1)*space)],[start_patch end_patch end_patch start_patch start_patch], [0.8 0.8 0.9], 'LineStyle', 'none', 'FaceAlpha',.75)
+%                 end
             end
         elseif diff_conds(c)         % any other light condition
-            patch([x1(c-sum(diff_conds==0)) x1(c-sum(diff_conds==0)) x1(c-sum(diff_conds==0))+pulse_dur(c) x1(c-sum(diff_conds==0))+pulse_dur(c) x1(c-sum(diff_conds==0))],[start_patch end_patch end_patch start_patch start_patch], [0.9 0.9 0.9], 'LineStyle', 'none')
+            patch([x1(c-sum(diff_conds==0)) x1(c-sum(diff_conds==0)) x1(c-sum(diff_conds==0))+pulse_dur(c) x1(c-sum(diff_conds==0))+pulse_dur(c) x1(c-sum(diff_conds==0))],[start_patch end_patch end_patch start_patch start_patch], [0.8 0.8 0.9], 'LineStyle', 'none', 'FaceAlpha',.75)
         end
         line([-prestim totaltime-prestim], [end_patch end_patch]','Color','r','LineStyle','--')
     end
@@ -57,9 +60,9 @@ for t = 1:num_trials     % for each trial
     plot(time_vec(rasterrange),new_spike_rast(t,rasterrange),'.','Color',color_mat(cond_colors(t),:),'MarkerSize',6)    
     hold on
 end
+
 ylim([0 num_trials])
 xlim([-prestim totaltime-prestim])
-
 xlabel('Time from visual stimulus onset (sec)','fontsize',14)
 ylabel('Trial (by condition)','fontsize',14)
 

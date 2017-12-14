@@ -18,7 +18,7 @@ cd(exp_path)
 if exist(sprintf('%s/data.mat',exp_path),'file')
     load(sprintf('%s/data.mat',exp_path))      % data from intanphy2matlab.m
 else
-    openEphys2matlab_forMegan(exp_path);      % data from intanphy2matlab.m
+    openEphys2matlab(exp_path);      % data from intanphy2matlab.m
     load(sprintf('%s/data.mat',exp_path))
 end
 
