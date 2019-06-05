@@ -26,7 +26,7 @@ function [unitinfo,FRs,tuning,waveforms] = unit_analysis_opto(unit,field_trials,
 plot_rast = 1;      % raster plot
 plot_psthV = 1;     % psth of visual trials
 plot_psthB = 1;     % psth of blank trials
-plot_rasterZ = 1;     % plot zoomed in visual trial psth
+plot_rasterZ =1;     % plot zoomed in visual trial psth
 plot_psthPref = 0;  % psth of preferred orientation trials
 plot_psthPrefSFTF = 0;  % psth of trials at preferred SF and TF
 plot_psthstdSFTF = 0;  % psth of trials at standard SF (.04) and TF (2Hz)
@@ -69,9 +69,9 @@ window = round([max(av_light_start)+1 max(av_light_start)+lighttime]); % analyze
 
 spikes_prestim = sum(spike_raster(:,1:prestim_ms),2);
 spikes_ev = sum(spike_raster(:,window(1):window(2)),2);
-spikes_ev_half = sum(spike_raster(:,window(1):window(1)-1+lighttime/2),2);      % currently using first av_light_start time as default
+spikes_ev_half = sum(spike_raster(:,window(2)-round(lighttime/2)+1:window(2)),2);      % changed to SECOND HALF 4/6/19
 spikes_ev_lighton = sum(spike_raster(:,window(1):window(1)-1+onset_ms),2);      % currently using first av_light_start time as default
-spikes_ev_early = sum(spike_raster(:,window(1)+onset_ms:window(1)-1+lighttime/2),2);    % from 100ms after light onset to halfway through light duration (currently using first av_light_start time as default)
+spikes_ev_early = sum(spike_raster(:,window(1)+onset_ms:window(1)-1+round(lighttime/2)),2);    % from 100ms after light onset to halfway through light duration (currently using first av_light_start time as default)
 spikes_onset = sum(spike_raster(:,prestim_ms+1:prestim_ms+onset_ms),2);
 
 %% Calculate important firing rates
@@ -181,8 +181,11 @@ edges = [0:binsize:total_time_ms/1000];      % in sec
 disp('Getting waveform information...')
 exp_path = cd;          % assuming CD was set in analysis_master
 if ~isempty(rez)
+    if ~exist('rez.mat','file')     % if not in current dir (for when concatenating files)
+        exp_path = fileparts(exp_path);
+    end
     [waveforms_microV,max_ch,shank] = readWaveformsFromRez(unit,exp_path,rez);      % default to read waveforms from Rez
-elseif exist(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)),'file');
+elseif exist(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)),'file')
     load(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)));
 else
     % still need to make compatible with old phy-sorted data
@@ -190,10 +193,13 @@ end
 
 % determine layer
 if exist('layers.mat','file')           % in current path
-    layers = importdata('layers.mat');
+    load('layers.mat');
 else
     define_layers(25,32,exp_path,1);        %** currently hard-coded for 32ch NN probes - need to change!!
-    layers = importdata('layers.mat');
+    load('layers.mat');
+end
+if exist('layers_shank','var') && ~isempty(shank)
+    layers = layers(layers_shank==shank);
 end
 layer = layers(max_ch);           %TEMP +1
 
@@ -271,7 +277,7 @@ if makeplots
     else
         legend_labels = {'Light ON'};
     end
-    color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2]; % for graphing purposes (first is black, last is green)
+    color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2;0 .8 1; 0 0 1]; % for graphing purposes (first is black, last is green)
     
     % make 2-by-4 figure array containing raster plot, PSTHs for visual and
     % blank trials, zoom-in of PSTH, running v. stationary barplot, prestim
@@ -284,7 +290,7 @@ if makeplots
     if plot_rast
         subplot(yy,xx,count_plots)
         make_raster_plot_v2(spike_raster,params.prestim,total_time_ms/1000,all_light,params.av_light_start,params.pulse_dur)
-        set(gca,'FontSize',14);
+        set(gca,'FontSize',18);
         title('Raster plot')
         count_plots = count_plots+1;
     end
@@ -295,8 +301,8 @@ if makeplots
         binsize = .025;         % 25 ms
     %     binsize = .05;
         make_psth_plot_v2(psthV,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur);
-        title('PSTH - visual trials','FontSize',14)
-        set(gca,'FontSize',14);
+        title('PSTH - visual trials','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
     
@@ -304,17 +310,17 @@ if makeplots
     if plot_psthB
         subplot(yy,xx,count_plots)
         make_psth_plot_v2(psthB,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur);
-        title('PSTH - blank trials','FontSize',14)
-        set(gca,'FontSize',14);
+        title('PSTH - blank trials','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
     
     % raster - zoom
     if plot_rasterZ
         subplot(yy,xx,count_plots)
-        make_raster_plot_v2(spike_raster(:,min(av_light_start)-100:min(av_light_start)+299),-.4,length(min(av_light_start)-100:min(av_light_start)+299)/1000,all_light,[.1 .1 .1],params.pulse_dur)
-        title('Raster plot (zoom)','FontSize',14)
-        set(gca,'FontSize',14);
+        make_raster_plot_v2(spike_raster(:,round(min(av_light_start))-100:round(min(av_light_start))+299),-(((round(min(av_light_start))-100))/1000-params.prestim),length(round(min(av_light_start))-100:round(min(av_light_start))+299)/1000,all_light,.1*ones(length(av_light_start)),params.pulse_dur)
+        title('Raster plot (zoom)','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
 
@@ -324,8 +330,8 @@ if makeplots
         [~,pref_ori] = max(abs(tuning_curve_norm(1,:)));    % 'preferred orientation' = maximum change from baseline (i.e., not just ori with largest FR)
         [~,psthP] = make_psth_v2(binsize,edges,ismember(1:num_trials,find(trial_type(:,orivar)==oriconds(pref_ori))),spike_raster,all_light);
         make_psth_plot_v2(psthP,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur); % make PSTH from trials with preferred orientation only
-        title('PSTH - Preferred Orientation','FontSize',14)
-        set(gca,'FontSize',14);
+        title('PSTH - Preferred Orientation','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
     
@@ -336,8 +342,8 @@ if makeplots
         [~,pref_TF] = max(abs(TF_FR(:,1) - repmat(baseline,size(SF_FR,1),1))); 
         [~,psthPsftf] = make_psth_v2(binsize,edges,ismember(1:num_trials,find((trial_type(:,SFvar)==SFs(pref_SF))&(trial_type(:,TFvar)==TFs(pref_TF)))),spike_raster,all_light);
         make_psth_plot_v2(psthPsftf,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur); % make PSTH from trials with preferred orientation only
-        title('PSTH - Preferred SF&TF','FontSize',14)
-        set(gca,'FontSize',14);
+        title('PSTH - Preferred SF&TF','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
     
@@ -346,8 +352,8 @@ if makeplots
         subplot(yy,xx,count_plots)
         [~,psthstd] = make_psth_v2(binsize,edges,ismember(1:num_trials,find((trial_type(:,SFvar)==.04)&(trial_type(:,TFvar)==30))),spike_raster,all_light);
         make_psth_plot_v2(psthstd,binsize,params.prestim,params.stimtime,total_time_ms/1000,trial_type(:,lightvar),params.av_light_start,params.light_dur); % make PSTH from trials with preferred orientation only
-        title('PSTH - Standard SF&TF','FontSize',14)
-        set(gca,'FontSize',14);
+        title('PSTH - Standard SF&TF','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
     
@@ -360,14 +366,14 @@ if makeplots
         end
         runbar = bargraph([spikerate_run; spikerate_stat],...
             [spikerateSE_run; spikerateSE_stat]);
-        set(get(gca,'YLabel'),'String','Mean FR (spikes/s)','Fontsize',14)
-        set(gca,'XTicklabel','Running| Stationary')
+        set(get(gca,'YLabel'),'String','Mean FR (spikes/s)','FontSize',18)
+        set(gca,'XTicklabel',sprintf('Running\n Stationary'))
         for i = 1:length(lightconds)
             set(runbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
         end
-        title('Firing rate - running vs. stationary','FontSize',14)
+        title('Firing rate - running vs. stationary','FontSize',24)
         legend off
-        set(gca,'FontSize',14);
+        set(gca,'FontSize',18);
         xax = get(gca,'xtick');
         xlim([xax(1)-.5 xax(end)+.5])
         count_plots = count_plots+1;
@@ -392,17 +398,17 @@ if makeplots
     %         end
             FR = [FR(1:end-1,:); spikerate_visual_lighton; spikerate_visual_early; spikerate_visual_half; spikerate_blank(1,:)];
             SE = [SE(1:end-1,:); spikerateSE_visual_lighton; spikerateSE_visual_early; spikerateSE_visual_half; spikerateSE_blank(1,:)];
-            xcondslabel = 'Prestim| Onset| LightonS| Early| Late| Blanks';
+            xcondslabel = sprintf('Prestim\n Onset\n LightonS\n Early\n Late\n Blanks');
         else
-            xcondslabel = 'Prestim| Onset| Evoked';
+            xcondslabel = sprintf('Prestim\n Onset\n Evoked');
         end
         evokedbar = bargraph(FR,SE);
-        set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
-        set(gca,'XTicklabel',xcondslabel,'Fontsize',10)
+        set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','FontSize',24)
+        set(gca,'XTicklabel',xcondslabel,'FontSize',18)
         for i = 1:length(lightconds)
             set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
         end
-        title('Firing rate','FontSize',14)
+        title('Firing rate','FontSize',24)
         legend off
          xax = get(gca,'xtick');
         xlim([xax(1)-.5 xax(end)+.5])
@@ -430,11 +436,11 @@ if makeplots
         for ii = 1:length(vals)
             plot(oris(maxoris(ii)), yax(2)-.5*ii, '*','Color',color_mat(sigconds(ii),:))
         end
-        ylabel('Firing rate (Hz)','FontSize',14)
-        xlabel('Orientation (degrees)','FontSize',14)
+        ylabel('Firing rate (Hz)','FontSize',24)
+        xlabel('Orientation (degrees)','FontSize',24)
         xlim([0 max(oris)])
-        title('Orientation tuning during light period','FontSize',14)
-        set(gca,'FontSize',14);
+        title('Orientation tuning during light period','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
 
@@ -446,16 +452,16 @@ if makeplots
             shadedErrorBar(SFs,SF_FR(:,lc)'-repmat(baseline,1,size(SF_FR,1)),SF_FR_SE(:,lc)',{'Color',color_mat(lc,:),'linewidth',2},1);  % plot ori tuning in NO RUN trials (NOT baseline-subtracted)
             hold on
          end
-         ylabel('Firing rate (Hz)','FontSize',14)
-        xlabel('SF (cpd)','FontSize',14)
+         ylabel('Firing rate (Hz)','FontSize',24)
+        xlabel('SF (cpd)','FontSize',24)
         
 %         evokedbar = bargraph(SF_FR,SF_FR_SE);
-%         set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
+%         set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',10)
 %         set(gca,'XTicklabel',num2str(SFs),'Fontsize',10)
 %         for i = 1:length(lightconds)
 %                 set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
 %         end
-        title('SF tuning','FontSize',14)
+        title('SF tuning','FontSize',24)
         legend off
         count_plots = count_plots+1;
     end
@@ -469,16 +475,16 @@ if makeplots
             shadedErrorBar(60./TFs,TF_FR(:,lc)'-repmat(baseline,1,size(TF_FR,1)),TF_FR_SE(:,lc)',{'Color',color_mat(lc,:),'linewidth',2},1);  % plot ori tuning in NO RUN trials (NOT baseline-subtracted)
             hold on
          end
-         ylabel('Firing rate (Hz)','FontSize',14)
-        xlabel('TF (Hz)','FontSize',14)
+         ylabel('Firing rate (Hz)','FontSize',24)
+        xlabel('TF (Hz)','FontSize',24)
         
 %         evokedbar = bargraph(TF_FR,TF_FR_SE);
-%         set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',14)
+%         set(get(gca,'YLabel'),'String','Mean FR (spikes/sec)','Fontsize',10)
 %         set(gca,'XTicklabel',num2str(TFs),'Fontsize',10)
 %         for i = 1:length(lightconds)
 %                 set(evokedbar(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
 %         end
-        title('TF tuning','FontSize',14)
+        title('TF tuning','FontSize',24)
         legend off
         count_plots = count_plots+1;
     end
@@ -490,10 +496,10 @@ if makeplots
         plot(t,waveforms_microV,'LineWidth',2);
         xlim([0 max(t)])
         hold on 
-        title(sprintf('Average waveform of spikes (Max ch: %d)',max_ch),'FontSize',14)
-        ylabel('Amplitude (uV)','FontSize',14)
-        xlabel('Time (ms)','FontSize',14)
-        set(gca,'FontSize',14);
+        title(sprintf('Average waveform of spikes (Max ch: %d)',max_ch),'FontSize',24)
+        ylabel('Amplitude (uV)','FontSize',24)
+        xlabel('Time (ms)','FontSize',24)
+        set(gca,'FontSize',18);
         count_plots = count_plots+1;
     end
 
@@ -520,8 +526,8 @@ if makeplots
         layer_name = strcat(sprintf('shank%d_',shank),layer_name);
     end
     save_clust_name= sprintf('%s\\%s_%s_Cluster%d',fig_dir,exp_name,layer_name,unit);
-    print(clust_fig,'-dpng',save_clust_name)
-    print2eps(save_clust_name,clust_fig)
+    print(clust_fig,'-dpng',strcat(save_clust_name,'.png'))
+%     print2eps(save_clust_name,clust_fig)
     close all
 end
 

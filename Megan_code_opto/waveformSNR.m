@@ -8,8 +8,14 @@ cd(exp_path)
 % templates(dropped_spikes')=[];
 if strcmpi(exp_system,'openephys')
     clusters = readNPY(sprintf('%s\\spike_clusters.npy',exp_path));
-    templates = readNPY(sprintf('%s\\spike_templates.npy',exp_path));
-    load('rez.mat');
+    if exist('spike_templates.npy','file')
+        templates = readNPY(sprintf('%s\\spike_templates.npy',exp_path));
+        load('rez.mat');
+    elseif exist('..\spike_templates.npy','file')
+        exp_path = fileparts(exp_path);
+        templates = readNPY(sprintf('%s\\spike_templates.npy',exp_path));
+        load(fullfile(exp_path,'rez.mat'));   
+    end
 end
 % sampleTimes = spike_times(clusters==unit);
 window = [-12 16];
@@ -19,7 +25,8 @@ s = dir(exp_path);
 if strcmpi(exp_system,'intan')
     key = 'amplifier';
 else
-    key = '.dat';
+%     key = '.dat';
+    key = '.bin';       % changed with concatenating files
 end
 for i=1:length(s)
     if strfind(s(i).name,key) 

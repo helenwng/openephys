@@ -8,6 +8,10 @@ function [prestim,poststim,stimtime,trial_type,IVs] = get_exp_params(exp_path,ex
 %   exp_path - e.g. 'H:\Tlx3project\T19\5-2-16\T19_diffintensities_160502_210213'
 %   exp_type - 'ramp', 'trains', 'intensities' or 'size'
 % created 8/11/16 by MAK
+% 3/7/19 - edited to allow user to see which trial number was the first one
+% recorded (in case analyzer file doesn't match with actual recording, or
+% if starting or ending trials are being discarded for some good reason) -
+% MAK
 
 cd(exp_path)
 
@@ -20,12 +24,13 @@ for i=1:length(s)
 end
 load(sprintf('%s/%s',exp_path,analyze_file),'-mat')     % load analyzer file with stimulus info
 prestim = Analyzer.P.param{1}{3};       % in seconds
-poststim = Analyzer.P.param{2}{3};
-if poststim == 0
-    extra = .25*1000;   % add extra samples for pseudo-poststim period
-else
-    extra = 0;
-end
+poststim = 0;       % hardcode to get rid of poststim - MAK 2/7/18
+% poststim = Analyzer.P.param{2}{3};
+% if poststim == 0
+%     extra = .25*1000;   % add extra samples for pseudo-poststim period
+% else
+%     extra = 0;
+% end
 stimtime = Analyzer.P.param{3}{3};
 totaltime = prestim+poststim+stimtime;
 onset = .2;     % onset time (in seconds) - this will be subtracted from the beginning of the stim period to determine evoked firing rate
@@ -66,9 +71,15 @@ end
 % import data from intan2matlab.m and make sure trial_type reflects the
 % number of trials that actually happened (may be less than num_trials
 % because analyzer file is created before the experiment actually starts)
-load(sprintf('%s/data.mat',exp_path))
+load(fullfile(exp_path,'data.mat'))
 real_num_trials = size(field_trials,1);
-trial_type = trial_type(1:real_num_trials,:);
+if real_num_trials ~= size(trial_type,1)
+    warning('There are stimulus parameters for %d trials according to the analyzer file but only actually %d trials recorded',size(trial_type,1),real_num_trials)
+    aa = input('Which trial number (according to analyzer file) was the first recorded trial?: ');
+else
+    aa = 1;
+end
+trial_type = trial_type(aa:aa+real_num_trials-1,:);
 
 % check analyzer-determined light trials against the LED input to Intan
 if exist('LED','var')             % if it was an optogenetics experiment

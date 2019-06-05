@@ -8,7 +8,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
-function CSD_openEphys(exp_path,probe)
+function CSD_thalamus(exp_path,probe)
 %INPUTS: path, and '64D', '128DN_bottom', etc. 
 z_score=0;
 combine_columns = 0;
@@ -38,12 +38,14 @@ amp_sr = dataInfo.header.sampleRate;
 s=dir;
 ch_names = {s(:).name};
 nchans = length(cell2mat(cellfun(@(x) strfind(x,'_CH'),ch_names,'UniformOutput',false))); % count number of continuous channel files
-v = zeros(nsamps,nchans);   % preallocate matrix for raw data
-v(:,1) = data;
+short = round(nsamps/4);
+v = zeros(short,nchans);   % preallocate matrix for raw data
+v(:,1) = data(1:short);
 clear data
 for i = 2:nchans
     contfile = sprintf('%s/100_CH%d.continuous',exp_path,i);
-    [v(:,i),~,~] = load_open_ephys_data_faster(contfile);
+    [tmp,~,~] = load_open_ephys_data_faster(contfile);
+    v(:,i) = tmp(1:short);
 end
 
 eventfile = fullfile(exp_path,'all_channels.events')
@@ -140,29 +142,30 @@ chan_order = p.channels(inds);
 chan_order = flipud(chan_order);    % change from top to bottom
 xx = flipud(p.x(inds));
 nshanks = length(unique(p.shaft));
-diff_cols = unique(xx);
-x_dif = diff(diff_cols);
-num_cols = length(diff_cols) - sum(diff(diff_cols)<5); % 64D probe has x vals at -20, -16, 0 , 16, and 20, but consider 16 and 20 the same
+% diff_cols = unique(xx);
+% x_dif = diff(diff_cols);
+% num_cols = length(diff_cols) - sum(diff(diff_cols)<5); % 64D probe has x vals at -20, -16, 0 , 16, and 20, but consider 16 and 20 the same
+num_cols = nshanks;
 count = 1;
-for i=1:length(x_dif)-sum(x_dif<5)+1
-    if x_dif(i) < 5
-        if length(diff_cols)==1
-            xcolvals{count-1} = [xcolvals{count-1}; diff_cols];
-        else
-            xcolvals{count} = diff_cols(1:2);
-            diff_cols(1:2) = [];
-            x_dif(i)=[];
-        end
-    else
-        xcolvals{count} = diff_cols(1);
-        diff_cols(1) = [];
-    end
-    count = count+1;
-end
+% for i=1:length(x_dif)
+%     if x_dif(i) < 5
+%         if length(diff_cols)==1
+%             xcolvals{count-1} = [xcolvals{count-1}; diff_cols];
+%         else
+%             xcolvals{count} = diff_cols(1:2);
+%             diff_cols(1:2) = [];
+%         end
+%     else
+%         xcolvals{count} = diff_cols(1);
+%         diff_cols(1) = [];
+%     end
+%     count = count+1;
+% end
 probemap = nan(ceil(nchans/num_cols),num_cols);
+shank = flipud(p.shaft(inds));
 for i = 1:num_cols
-    col_chans = chan_order(ismember(xx,xcolvals{i}));
-    probemap(1:length(col_chans),i) = col_chans;
+%     col_chans = chan_order(ismember(xx,xcolvals{i}));
+    probemap(:,i) = chan_order(shank==i);
 end
 probemap = probemap+1;          % change so that it stats from 1!!
 if combine_columns == 1
@@ -170,6 +173,10 @@ if combine_columns == 1
 else
     spacing = max(abs(diff(p.z(probemap(:,2)))));
 end
+% use only first two columns of each shank
+twocols = p.x(probemap(:,1))==median(p.x(probemap(:,1)));
+probemap = probemap(twocols,:);
+%     
 pos = probemap(:);
 pos(isnan(pos)) = [];
 zvals = p.z(pos);       % get corresponding vector of z values
@@ -193,41 +200,55 @@ totaltime = totaltime+elapsedtime;
 fprintf('Complete! total elapsed time was %.2f seconds',totaltime)
 fprintf('\n')
 
-%% find photo pulses
-disp('Find timing using PD pulses to est. the Evoked Response Potential (ERP)')
+%% find high-intensity opto pulses during blank trials
+disp('Find timing using analog the Evoked Response Potential (ERP)')
 tic
-new_re=zeros(1,length(re));
-for i=1:length(re)-1
-    pdiff(i)=(re(i+1))-(re(i));
-    if pdiff(i)>3.5 && pdiff(i)<4.1
-        new_re(1,i)=re(i+1);
-    else
-        new_re(1,i)=0;
-    end
-end
-disp('Identify timestamps of photodiode')
-new_re(new_re==0)=[];% timestamps for the end of the photo
-for i=1:length(new_re)% the first two and last two pulses are removed
-    %%% this sections is important because it est the timing for the
-    %%% rest of the experiment 
-    %%% 100msec before flip, 400msec after
-    
-%     st_time(i,:)=(new_re(i)-3.00); end_time(i,:)=new_re(i)-1.00; %dark->light
-%     st_time_down(i,:)=(new_re(i)-1.00); end_time_down(i,:)=new_re(i)+1; %light->dark
-    st_time(i,:)=(new_re(i)-2.50); end_time(i,:)=new_re(i)-1.50; %dark->light
-    st_time_down(i,:)=(new_re(i)-0.50); end_time_down(i,:)=new_re(i)+0.50; %light->dark
-end
-for i=1:length(st_time)
-    trials (i,1) = find(time_index>=st_time(i)&time_index<=end_time(i),1,'first');  % in samples, starting from 1
-    trials (i,2) = find(time_index>=(time_index(trials(i,1)))&time_index<=(time_index(trials(i,1))+2.000),1,'last');
-    trial_time(i,:)= trials(i,1):1:trials(i,1)+1000;
-    
-    trialsd(i,1) = find(time_index>=st_time_down(i)&time_index<=end_time_down(i),1,'first');  % in samples, starting from 1
-    trialsd(i,2) = find(time_index>=(time_index(trialsd(i,1)))&time_index<=(time_index(trialsd(i,1))+2.000),1,'last');
-    triald_time(i,:)= trialsd(i,1):1:trialsd(i,1)+1000;
-end
-timing=(time_index(trial_time(1,:))-time_index(trial_time(1,1))-0.5);
-timingd=(time_index(triald_time(1,:))-time_index(triald_time(1,1))-0.5);
+
+% new attempt
+[~,~,~,trial_type,IVs] = get_exp_params(exp_path,'step');
+tris = find(trial_type(:,1)==0 & trial_type(:,3)>0);
+bl_field_trials = field_trials(tris,:);
+% bl_field_trials = bl_field_trials(1:find(bl_field_trials(:,2)<short./(amp_sr/1000),1,'last'),:);
+bl_trials = [trials(tris,1)+.5 trials(tris,2)-1.5];
+
+% new_led=zeros(1,length(stim_times));
+% % for i=1:length(stim_times)-1
+% %     ldiff(i)=((stim_times(i+1))-(stim_times(i)))./60;
+% %     if ldiff(i)>3.5 && ldiff(i)<4.1
+% %         new_led(1,i)=(stim_times(i+1))/60;
+% %     else
+% %         new_led(1,i)=0;
+% %     end
+% % end
+% new_led = stim_times/60;
+% disp('Identify timestamps of photodiode')
+% new_led(new_led==0)=[];% timestamps for the end of the photo
+% for i=1:length(new_led)% the first two and last two pulses are removed
+%     %%% this sections is important because it est the timing for the
+%     %%% rest of the experiment 
+%     %%% 100msec before flip, 400msec after
+%     
+% %     st_time(i,:)=(new_re(i)-3.00); end_time(i,:)=new_re(i)-1.00; %dark->light
+% %     st_time_down(i,:)=(new_re(i)-1.00); end_time_down(i,:)=new_re(i)+1; %light->dark
+% %     st_time(i,:)=(new_led(i)-2.50); end_time(i,:)=new_led(i)-1.50; %dark->light
+%     st_time(i,:)=(new_led(i)-0.50); end_time(i,:)=new_led(i)+0.50; %light->dark
+% end
+st_time = trials(:,1) - .5;
+end_time = trials(:,1) + .5;
+st_time_down = trials(:,2)-.5;
+end_time_down = trials(:,2)+.5;
+% for i=1:length(st_time)
+%     trials (i,1) = find(time_index>=st_time(i)&time_index<=end_time(i),1,'first');  % in samples, starting from 1
+%     trials (i,2) = find(time_index>=(time_index(trials(i,1)))&time_index<=(time_index(trials(i,1))+2.000),1,'last');
+%     trial_time(i,:)= trials(i,1):1:trials(i,1)+1000;
+%     
+%     trialsd(i,1) = find(time_index>=st_time_down(i)&time_index<=end_time_down(i),1,'first');  % in samples, starting from 1
+%     trialsd(i,2) = find(time_index>=(time_index(trialsd(i,1)))&time_index<=(time_index(trialsd(i,1))+2.000),1,'last');
+%     triald_time(i,:)= trialsd(i,1):1:trialsd(i,1)+1000;
+% end
+% 
+% timing=(time_index(trial_time(1,:))-time_index(trial_time(1,1))-0.5);
+% timingd=(time_index(triald_time(1,:))-time_index(triald_time(1,1))-0.5);
 
 %% Largely redundant section for movement trials, may remove
 % disp('Find the movement data and determine if the mouse was running or stationary')
@@ -242,11 +263,11 @@ steps = maxtime / 100;
 
 mmvt=0;
 
-for i=1:length(trials)
+for i=1:length(tris)
     if mmvt == 0
         mmvt_count(i) = 0;
     else
-        mmvt_trials{i,:}    = mmvt(1,trials(i,1):trials(i,2));
+        mmvt_trials{i,:}    = mmvt(1,bl_trials(i,1):bl_trials(i,2));
         mmvt_count(i,:)     = length(find(mmvt_trials{i}==1));      % added by RK
     end
 end
@@ -262,9 +283,14 @@ for i=1:length(mmvt_count)
     end
 end
 for i=1:length(trial_stationary)
-    trials2(i,:)= trials(trial_stationary(i),1):1:trials(trial_stationary(i),1)+1000;
-    trials2d(i,:)= trialsd(trial_stationary(i),1):1:trialsd(trial_stationary(i),1)+1000;
+    trials2(i,:)= bl_field_trials(trial_stationary(i),1)+500:1:bl_field_trials(trial_stationary(i),1)+1500;
+%     trials2d(i,:)= trialsd(trial_stationary(i),1):1:trialsd(trial_stationary(i),1)+1000;
 end
+% lastgood = find(trials2(:,end)<round(short/20),1,'last');
+% trials2(lastgood+1:end,:) = [];
+% trials2d(lastgood+1:end,:)=[];
+
+trials2 = trials2(1:find(bl_field_trials(:,2)<short./(amp_sr/1000),1,'last'),:);
 
 %% Remove trials with high diff from median!
 disp('Removing noisy trials')
@@ -273,7 +299,7 @@ multiplier = 2; %stdev cutoff for trial removal
 % ERP01(std(bsxfun(@minus,ERP01,median(ERP01,1)),0,2)>multiplier*median(std(bsxfun(@minus,ERP01,median(ERP01,1)),0,2)),:)=[];
 % ERP01=mean(ERP01,1);
 
-for i=1:length(cont)
+for i=1:64
 % ERP01 = LFP01(trials2);
 % ERP01 = mean(ERP01(std(bsxfun(@minus,LFP01(trials2),median(LFP01(trials2),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP01(trials2),median(LFP01(trials2),1)),0,2)),:),1);
     if i<10
@@ -281,19 +307,19 @@ for i=1:length(cont)
         eval(['ERP0' num2str(i) '= mean(ERP0' num2str(i) '(std(bsxfun(@minus,LFP0' num2str(i) '(trials2),median(LFP0'...
             num2str(i) '(trials2),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP0'...
             num2str(i) '(trials2),median(LFP0' num2str(i) '(trials2),1)),0,2)),:),1);']);
-        eval(['ERPd0' num2str(i) '= LFP0' num2str(i) '(trials2d);']);
-        eval(['ERPd0' num2str(i) '= mean(ERPd0' num2str(i) '(std(bsxfun(@minus,LFP0' num2str(i) '(trials2d),median(LFP0'...
-            num2str(i) '(trials2d),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP0'...
-            num2str(i) '(trials2d),median(LFP0' num2str(i) '(trials2d),1)),0,2)),:),1);']);
+%         eval(['ERPd0' num2str(i) '= LFP0' num2str(i) '(trials2d);']);
+%         eval(['ERPd0' num2str(i) '= mean(ERPd0' num2str(i) '(std(bsxfun(@minus,LFP0' num2str(i) '(trials2d),median(LFP0'...
+%             num2str(i) '(trials2d),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP0'...
+%             num2str(i) '(trials2d),median(LFP0' num2str(i) '(trials2d),1)),0,2)),:),1);']);
     else
         eval(['ERP' num2str(i) '= LFP' num2str(i) '(trials2);']);
         eval(['ERP' num2str(i) '= mean(ERP' num2str(i) '(std(bsxfun(@minus,LFP' num2str(i) '(trials2),median(LFP'...
             num2str(i) '(trials2),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP'...
             num2str(i) '(trials2),median(LFP' num2str(i) '(trials2),1)),0,2)),:),1);']);
-        eval(['ERPd' num2str(i) '= LFP' num2str(i) '(trials2d);']);
-        eval(['ERPd' num2str(i) '= mean(ERPd' num2str(i) '(std(bsxfun(@minus,LFP' num2str(i) '(trials2d),median(LFP'...
-            num2str(i) '(trials2d),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP'...
-            num2str(i) '(trials2d),median(LFP' num2str(i) '(trials2d),1)),0,2)),:),1);']);
+%         eval(['ERPd' num2str(i) '= LFP' num2str(i) '(trials2d);']);
+%         eval(['ERPd' num2str(i) '= mean(ERPd' num2str(i) '(std(bsxfun(@minus,LFP' num2str(i) '(trials2d),median(LFP'...
+%             num2str(i) '(trials2d),1)),0,2)<=multiplier*median(std(bsxfun(@minus,LFP'...
+%             num2str(i) '(trials2d),median(LFP' num2str(i) '(trials2d),1)),0,2)),:),1);']);
     end
 end
 
@@ -313,56 +339,67 @@ if strfind(probe,'64D')
     % ERPd_shk1=(aux_shk1d/(1*10^8))*(1*10^6);% Scale factor for  ERP      <<<< MAYBE CHANGE THIS
     % ERPd_shk2=(aux_shk2d/(1*10^8))*(1*10^6);% Scale factor for  ERP
     % ERPd_shk3=(aux_shk3d/(1*10^8))*(1*10^6);% Scale factor for  ERP
+    
+elseif strfind(probe,'64G')
+    ERP_shk1=vertcat(ERP01,ERP02,ERP03,ERP04,ERP05,ERP06,ERP07,ERP08,ERP09,ERP10,ERP11,ERP12,ERP13,ERP14,ERP15,ERP16,ERP17,ERP18,ERP19,ERP20,ERP21,ERP22,ERP23,ERP24,ERP25,ERP26,ERP27,ERP28,ERP29,ERP30,ERP31,ERP32);
+    ERP_shk2= vertcat(ERP33,ERP34,ERP35,ERP36,ERP37,ERP38,ERP39,ERP40,ERP41,ERP42,ERP43,ERP44,ERP45,ERP46,ERP47,ERP48,ERP49,ERP50,ERP51,ERP52,ERP53,ERP54,ERP55,ERP56,ERP57,ERP58,ERP59,ERP60,ERP61,ERP62,ERP63,ERP64);
 
-elseif strfind(probe,'128AN')
-    ERP_shk1=vertcat(ERP01,ERP02,ERP03,ERP04,ERP05,ERP06,ERP07,ERP08,ERP09,ERP10,ERP11,ERP12,ERP13,ERP14,ERP15,ERP16,ERP17,ERP18,ERP19,ERP20,ERP21);
-    ERP_shk2= vertcat(ERP22,ERP23,ERP24,ERP25,ERP26,ERP27,ERP28,ERP29,ERP30,ERP31,ERP32,ERP33,ERP34,ERP35,ERP36,ERP37,ERP38,ERP39,ERP40,ERP41,ERP42,ERP43);
-    ERP_shk3 = vertcat(ERP44,ERP45,ERP46,ERP47,ERP48,ERP49,ERP50,ERP51,ERP52,ERP53,ERP54,ERP55,ERP56,ERP57,ERP58,ERP59,ERP60,ERP61,ERP62,ERP63,ERP64);
-    ERP_shk4=vertcat(ERP65,ERP66,ERP67,ERP68,ERP69,ERP70,ERP71,ERP72,ERP73,ERP74,ERP75,ERP76,ERP77,ERP78,ERP79,ERP80,ERP81,ERP82,ERP83,ERP84,ERP85);
-    ERP_shk5= vertcat(ERP86,ERP87,ERP88,ERP89,ERP90,ERP91,ERP92,ERP93,ERP94,ERP95,ERP96,ERP97,ERP98,ERP99,ERP100,ERP101,ERP102,ERP103,ERP104,ERP105,ERP106,ERP107);
-    ERP_shk6 = vertcat(ERP108,ERP109,ERP110,ERP111,ERP112,ERP113,ERP114,ERP115,ERP116,ERP117,ERP118,ERP119,ERP120,ERP121,ERP122,ERP123,ERP124,ERP125,ERP126,ERP127,ERP128);
-
-    ERPd_shk1=vertcat(ERPd01,ERPd02,ERPd03,ERPd04,ERPd05,ERPd06,ERPd07,ERPd08,ERPd09,ERPd10,ERPd11,ERPd12,ERPd13,ERPd14,ERPd15,ERPd16,ERPd17,ERPd18,ERPd19,ERPd20,ERPd21);
-    ERPd_shk2=vertcat(ERPd22,ERPd23,ERPd24,ERPd25,ERPd26,ERPd27,ERPd28,ERPd29,ERPd30,ERPd31,ERPd32,ERPd33,ERPd34,ERPd35,ERPd36,ERPd37,ERPd38,ERPd39,ERPd40,ERPd41,ERPd42,ERPd43);
-    ERPd_shk3= vertcat(ERPd44,ERPd45,ERPd46,ERPd47,ERPd48,ERPd49,ERPd50,ERPd51,ERPd52,ERPd53,ERPd54,ERPd55,ERPd56,ERPd57,ERPd58,ERPd59,ERPd60,ERPd61,ERPd62,ERPd63,ERPd64);
-    ERPd_shk4=vertcat(ERPd65,ERPd66,ERPd67,ERPd68,ERPd69,ERPd70,ERPd71,ERPd72,ERPd73,ERPd74,ERPd75,ERPd76,ERPd77,ERPd78,ERPd79,ERPd80,ERPd81,ERPd82,ERPd83,ERPd84,ERPd85);
-    ERPdd_shk5= vertcat(ERPd86,ERPd87,ERPd88,ERPd89,ERPd90,ERPd91,ERPd92,ERPd93,ERPd94,ERPd95,ERPd96,ERPd97,ERPd98,ERPd99,ERPd100,ERPd101,ERPd102,ERPd103,ERPd104,ERPd105,ERPd106,ERPd107);
-    ERPdd_shk6 = vertcat(ERPd108,ERPd109,ERPd110,ERPd111,ERPd112,ERPd113,ERPd114,ERPd115,ERPd116,ERPd117,ERPd118,ERPd119,ERPd120,ERPd121,ERPd122,ERPd123,ERPd124,ERPd125,ERPd126,ERPd127,ERPd128);
+%     ERPd_shk1=vertcat(ERPd01,ERPd02,ERPd03,ERPd04,ERPd05,ERPd06,ERPd07,ERPd08,ERPd09,ERPd10,ERPd11,ERPd12,ERPd13,ERPd14,ERPd15,ERPd16,ERPd17,ERPd18,ERPd19,ERPd20,ERPd21,ERPd22,ERPd23,ERPd24,ERPd25,ERPd26,ERPd27,ERPd28,ERPd29,ERPd30,ERPd31,ERPd32);
+%     ERPd_shk2=vertcat(ERPd33,ERPd34,ERPd35,ERPd36,ERPd37,ERPd38,ERPd39,ERPd40,ERPd41,ERPd42,ERPd43,ERPd44,ERPd45,ERPd46,ERPd47,ERPd48,ERPd49,ERPd50,ERPd51,ERPd52,ERPd53,ERPd54,ERPd55,ERPd56,ERPd57,ERPd58,ERPd59,ERPd60,ERPd61,ERPd62,ERPd63,ERPd64);
 
 end
+
+%only first two columns
+ERP_shk1 = ERP_shk1(twocols,:);
+ERP_shk2 = ERP_shk2(twocols,:);
+
 
 % trials2 = floor(trials2/(amp_sr/1000)); % downsample
 
 
-%% Get the mean of ERP and ERPd
-
-for i=1:length(ERP_shk1(:,1))
-    ERP_shk1_testmean(i,:) = mean([ERP_shk1(i,:);ERPd_shk1(i,:)]);
-end
-% ERPd_shk1=(aux_shk1d/(1*10^8))*(1*10^6);
-ERP_shk1 = ERP_shk1_testmean;
-
-% if combine_columns==0
-    for i=1:length(ERP_shk2(:,1))
-        ERP_shk2_testmean(i,:) = mean([ERP_shk2(i,:);ERPd_shk2(i,:)]);
-    end
-    for i=1:length(ERP_shk3(:,1))
-        ERP_shk3_testmean(i,:) = mean([ERP_shk3(i,:);ERPd_shk3(i,:)]);
-    end
-    ERP_shk2 = ERP_shk2_testmean;
-    ERP_shk3 = ERP_shk3_testmean;
+% %% Get the mean of ERP and ERPd
+% 
+% for i=1:length(ERP_shk1(:,1))
+%     ERP_shk1_testmean(i,:) = mean([ERP_shk1(i,:);ERPd_shk1(i,:)]);
 % end
+% % ERPd_shk1=(aux_shk1d/(1*10^8))*(1*10^6);
+% ERP_shk1 = ERP_shk1_testmean;
+% 
+% % if combine_columns==0
+%     for i=1:length(ERP_shk2(:,1))
+%         ERP_shk2_testmean(i,:) = mean([ERP_shk2(i,:);ERPd_shk2(i,:)]);
+%     end
+% %     for i=1:length(ERP_shk3(:,1))
+% %         ERP_shk3_testmean(i,:) = mean([ERP_shk3(i,:);ERPd_shk3(i,:)]);
+% %     end
+%     ERP_shk2 = ERP_shk2_testmean;
+% %     ERP_shk3 = ERP_shk3_testmean;
+% % end
 
+%%
+ERP_shk2_clean = ERP_shk2;
+ERP_shk2_clean(:,500:510)=0;
+ERP_shk2_clean(:,511:end)=ERP_shk2_clean(:,511:end)-repmat(ERP_shk2(:,510),1,size(ERP_shk2_clean(:,511:end),2));
+figure;plot(ERP_shk2_clean')
+
+ERP_shk1_clean = ERP_shk1;
+ERP_shk1_clean(:,500:510)=0;
+ERP_shk1_clean(:,511:end)=ERP_shk1_clean(:,511:end)-repmat(ERP_shk1(:,510),1,size(ERP_shk1_clean(:,511:end),2));
+ERP_shk1 = ERP_shk1_clean;
+ERP_shk2 = ERP_shk2_clean;
 %% Plot and clean up ERP figures %%%MEAN NORMALIZATION
 
 probemap_chrem = probemap; %map of removed channels = nan
 % probemapd_chrem = probemap;
 
+%TMP
+timing = time_index(1:1001)-.5;
+
 [ERP_shk1 probemap_chrem]=clean_ERP_MAK(ERP_shk1,timing,probemap_chrem,1);
 ERP_shk1_nonan=ERP_shk1;
 
 [ERP_shk2 probemap_chrem]=clean_ERP_MAK(ERP_shk2,timing,probemap_chrem,2);
-[ERP_shk3 probemap_chrem]=clean_ERP_MAK(ERP_shk3,timing,probemap_chrem,3);
+% [ERP_shk3 probemap_chrem]=clean_ERP_MAK(ERP_shk3,timing,probemap_chrem,3);
 
 % remove nan's by replacing with the average of the nearest neighbors
 %check if there are non-nan channels adjacent
@@ -484,7 +521,7 @@ end
 
 %check if there are non-nan channels adjacent
 ERP_shk2_nonan=ERP_shk2;
-ERP_shk3_nonan=ERP_shk3;
+% ERP_shk3_nonan=ERP_shk3;
 
 nanidx2 = find(isnan(ERP_shk2(:,1)));
 nonnanidx2 = find(~isnan(ERP_shk2(:,1)));
@@ -506,25 +543,25 @@ for i=1:length(nanidx2)
     end
 end
 
-nanidx3 = find(isnan(ERP_shk3(:,1)));
-nonnanidx3 = find(~isnan(ERP_shk3(:,1)));
-adjidx3 = zeros(length(nanidx3),2);
-for i=1:length(nanidx3)
-    temp = nonnanidx3-nanidx3(i);%distance from nan chan to other chans
-    [tempmin tempidx] = min(abs(temp(temp<0)));%find first min distance
-    if ~isempty(tempmin)
-        adjidx3(i,1) = nonnanidx3(tempidx);
-        temp(1:tempidx) = nan; %make first min nan
-    else
-        adjidx3(i,1) = nan;
-    end
-    [tempmin tempidx] = min(abs(temp));%find second min distance
-    if ~isempty(tempmin) && ~isnan(tempmin)
-        adjidx3(i,2) = nonnanidx3(tempidx);
-    else
-        adjidx3(i,2) = nan;
-    end
-end
+% nanidx3 = find(isnan(ERP_shk3(:,1)));
+% nonnanidx3 = find(~isnan(ERP_shk3(:,1)));
+% adjidx3 = zeros(length(nanidx3),2);
+% for i=1:length(nanidx3)
+%     temp = nonnanidx3-nanidx3(i);%distance from nan chan to other chans
+%     [tempmin tempidx] = min(abs(temp(temp<0)));%find first min distance
+%     if ~isempty(tempmin)
+%         adjidx3(i,1) = nonnanidx3(tempidx);
+%         temp(1:tempidx) = nan; %make first min nan
+%     else
+%         adjidx3(i,1) = nan;
+%     end
+%     [tempmin tempidx] = min(abs(temp));%find second min distance
+%     if ~isempty(tempmin) && ~isnan(tempmin)
+%         adjidx3(i,2) = nonnanidx3(tempidx);
+%     else
+%         adjidx3(i,2) = nan;
+%     end
+% end
 
 %find the distance to the nearest non-nan channels and then do weighted averages!
 
@@ -564,39 +601,40 @@ end
 %     ERP_shk2_nonan([consec2; consec2(end)+1],:)=[];
 % end
 
-%shank3
-for i=1:length(nanidx3)
-    if isnan(adjidx3(i,1)) %if channels at end of probe are removed
-        ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,2),:); %just duplicate nearest neighbor
-    elseif isnan(adjidx3(i,2))
-        ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,1),:);
-    elseif adjidx3(i,2)-adjidx3(i,1)>=2 %if nan chan is between channels
-        d1 = nanidx3(i)-adjidx3(i,1); %distances to nearest non-nan channels
-        d2 = adjidx3(i,2)-nanidx3(i);
-        if d1 == d2
-            ERP_shk3_nonan(nanidx3(i),:) = mean([ERP_shk3(adjidx3(i,1),:);ERP_shk3(adjidx3(i,2),:)],1);
-        else
-            %WEIGHTED AVERAGE....NOT SURE I DID THIS RIGHT!?!
-            ERP_shk3_nonan(nanidx3(i),:) = (ERP_shk3(adjidx3(i,1),:)*(1/d1) + ERP_shk3(adjidx3(i,2),:)*(1/d2))/(1/d1+1/d2);
-        end
-    else %if nan chan is at the end of the probe
-        if nanidx3(i) == 1
-            ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,2),:); %just duplicate nearest neighbor
-        elseif nanidx3(i) == length(ERP_shk3(:,1))
-            ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,1),:);
-        end
-    end
-end
-% consec3 = nanidx3(find(diff(nanidx3)==1));
-% if ~isempty(consec3)
-%     ERP_shk3_nonan([consec3; consec3(end)+1],:)=[];
+% %shank3
+% for i=1:length(nanidx3)
+%     if isnan(adjidx3(i,1)) %if channels at end of probe are removed
+%         ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,2),:); %just duplicate nearest neighbor
+%     elseif isnan(adjidx3(i,2))
+%         ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,1),:);
+%     elseif adjidx3(i,2)-adjidx3(i,1)>=2 %if nan chan is between channels
+%         d1 = nanidx3(i)-adjidx3(i,1); %distances to nearest non-nan channels
+%         d2 = adjidx3(i,2)-nanidx3(i);
+%         if d1 == d2
+%             ERP_shk3_nonan(nanidx3(i),:) = mean([ERP_shk3(adjidx3(i,1),:);ERP_shk3(adjidx3(i,2),:)],1);
+%         else
+%             %WEIGHTED AVERAGE....NOT SURE I DID THIS RIGHT!?!
+%             ERP_shk3_nonan(nanidx3(i),:) = (ERP_shk3(adjidx3(i,1),:)*(1/d1) + ERP_shk3(adjidx3(i,2),:)*(1/d2))/(1/d1+1/d2);
+%         end
+%     else %if nan chan is at the end of the probe
+%         if nanidx3(i) == 1
+%             ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,2),:); %just duplicate nearest neighbor
+%         elseif nanidx3(i) == length(ERP_shk3(:,1))
+%             ERP_shk3_nonan(nanidx3(i),:) = ERP_shk3(adjidx3(i,1),:);
+%         end
+%     end
 % end
+% % consec3 = nanidx3(find(diff(nanidx3)==1));
+% % if ~isempty(consec3)
+% %     ERP_shk3_nonan([consec3; consec3(end)+1],:)=[];
+% % end
 
 % normalize ERPS i.e. subtract common noise (from monitor?)
 
 ERP_shk2_mean = nanmean(ERP_shk2_nonan,1);
-ERP_shk3_mean = nanmean(ERP_shk3_nonan,1);
-ERP_shk_all = [ERP_shk1_nonan; ERP_shk2_nonan; ERP_shk3_nonan];
+% ERP_shk3_mean = nanmean(ERP_shk3_nonan,1);
+ERP_shk_all = [ERP_shk1_nonan; ERP_shk2_nonan];
+% ERP_shk_all = [ERP_shk1_nonan; ERP_shk2_nonan; ERP_shk3_nonan];
 ERP_shk_all_mean = nanmean(ERP_shk_all,1);
 
 % for i = 1:length(ERP_shk2_nonan(:,1))
@@ -620,11 +658,13 @@ ERP_shk_all_mean = nanmean(ERP_shk_all,1);
 % end
 %%%FOR NOW JUST MAKING REMOVED CHANNELS == 0 ... THERE'S PROBABLY A BETTER WAY!!
 
+
+
 %% The final ERP figure is sent to the screen to view and now the next section deals
 %  with the CSD plotter and average analysis
 % pause(5);
 file_name = 'CSD_LFPdata';
-save (file_name);
+save (file_name,'ERP_shk1_nonan','ERP_shk2_nonan');
 disp ('saving mat')
 HC=CSDplotter;
 disp ('Use CSD plotter')
@@ -654,13 +694,13 @@ if reply == 'Y';
     close all
     clc
     
-    disp ('Open CSD matrix file for Shank 3')
-    filename = uigetfile;
-    load (filename);
-    CSD_matrix3=CSD_matrix;
-    fprintf('%s%s','Filename:   ',filename);
-    close all
-    clc
+%     disp ('Open CSD matrix file for Shank 3')
+%     filename = uigetfile;
+%     load (filename);
+%     CSD_matrix3=CSD_matrix;
+%     fprintf('%s%s','Filename:   ',filename);
+%     close all
+%     clc
     end
     
     disp ('Plot final ERP and CSD side by side')
@@ -871,9 +911,8 @@ if reply == 'Y';
         % poststimulus onset
     else
         left_channels= fliplr([1:1:size(ERP_shk1,1)]);
-        center_channels= fliplr([22:1:size(ERP_shk2,1)+21]);
-        right_channels= fliplr([44:1:(size(ERP_shk3,1)+43)]);
-        channels={left_channels';center_channels';right_channels'}';
+        right_channels= fliplr([size(ERP_shk1,1)+1:1:size(ERP_shk2,1)*2]);
+        channels={left_channels';right_channels'}';
         
         FontName = 'MyriadPro-Regular'; % or choose any other font
         FontSize = 14;
@@ -900,11 +939,8 @@ if reply == 'Y';
                     if ii==1
                         averaged_ERP= (ERP_shk1_nonan(i,:)/(1*10^8))*(1*10^6);      % scale factor for plotting(not totally sure where this came from?)
                     elseif ii==2
-                        i=i-21;
+                        i=i-size(ERP_shk1,1);
                         averaged_ERP= (ERP_shk2_nonan(i,:)/(1*10^8))*(1*10^6);
-                    elseif ii==3
-                        i=i-43;
-                        averaged_ERP= (ERP_shk3_nonan(i,:)/(1*10^8))*(1*10^6);
                     end
                     
                     plot(X2, averaged_ERP*depth_spacing + depth,'LineWidth',2);
@@ -1028,10 +1064,10 @@ if reply == 'Y';
     colormap(flipud(jet(colorDepth)));
     %     pcolor(X2, 1:1:size(CSD_matrix1,1), CSD_matrix1);
     %     imagesc(X2,[],CSD_matrix1)
-    subplot(1, 3, 1);
+    subplot(1, 2, 1);
     title('Column 1')
     hold all;
-    imagesc(X2(476:726),[],CSD_matrix1(:,476:726))
+    imagesc(X2(476:576),[],CSD_matrix1(:,476:576))
     shading interp; % do not interpolate pixels
     axis on; % display axis
     axis tight;% no white borders
@@ -1047,8 +1083,8 @@ if reply == 'Y';
         'XColor'      , [.0 .0 .0], ...
         'YColor'      , [.0 .0 .0], ...
         'LineWidth'   , 0.6        );
-    set(gca,'Xlim',[-25 225]);
-    set(gca,'XTickLabel',[0 200], 'Xtick', [0 200])
+    set(gca,'Xlim',[-25 75]);
+    set(gca,'XTickLabel',[0 50], 'Xtick', [0 50])
     set(gca, 'yticklabel',1:1:size(CSD_matrix1,1), 'Ytick', 1:1:size(CSD_matrix1,1));
     xLabelText = 'Time from stimulus onset (ms)';  % greek letters in LaTeX Syntax
     yLabelText = 'Electrode number';
@@ -1177,8 +1213,8 @@ if reply == 'Y';
     colorDepth = 1000;
     colormap(flipud(jet(colorDepth)));
     %         pcolor(X2, 1:1:size(CSD_matrix2,1), CSD_matrix2);
-    subplot(1, 3, 2);
-    imagesc(X2(476:726),[],CSD_matrix2(:,476:726))
+    subplot(1, 2, 2);
+    imagesc(X2(476:576),[],CSD_matrix2(:,476:576))
     shading interp; % do not interpolate pixels
     axis on; % display axis
     axis tight;% no white borders
@@ -1194,8 +1230,8 @@ if reply == 'Y';
         'XColor'      , [.0 .0 .0], ...
         'YColor'      , [.0 .0 .0], ...
         'LineWidth'   , 0.6        );
-    set(gca,'Xlim',[-25 225]);
-    set(gca,'XTickLabel',[0 200], 'Xtick', [0 200])
+    set(gca,'Xlim',[-25 75]);
+    set(gca,'XTickLabel',[0 50], 'Xtick', [0 50])
     set(gca, 'yticklabel',1:1:size(CSD_matrix2,1), 'Ytick', 1:1:size(CSD_matrix2,1));
     xLabelText = 'Time from stimulus onset (ms)';  % greek letters in LaTeX Syntax
     yLabelText = 'Electrode number';
@@ -1322,63 +1358,63 @@ if reply == 'Y';
 %     % --- dimensions and position of plot
 %     hsp = subplot(1,1,1, 'Parent', CSD_fig3);
 %     set(hsp,'Position',[0.15 0.15 0.60 0.80]);
-    subplot(1, 3, 3);
-    colorDepth = 1000;
-    colormap(flipud(jet(colorDepth)));
-    %         pcolor(X2, 1:1:size(CSD_matrix2,1), CSD_matrix2);
-    imagesc(X2(476:726),[],CSD_matrix3(:,476:726))
-    shading interp; % do not interpolate pixels
-    axis on; % display axis
-    axis tight;% no white borders
-    set(gca, ...
-        'Box'         , 'off'      , ...
-        'TickDir'     , 'in'      , ...
-        'Ydir'        , 'reverse', ...
-        'TickLength'  , [.01 .01] , ...
-        'XMinorTick'  , 'off'      , ...
-        'YMinorTick'  , 'off'     , ...
-        'XGrid'       , 'off'     , ...
-        'YGrid'       , 'off'     , ...
-        'XColor'      , [.0 .0 .0], ...
-        'YColor'      , [.0 .0 .0], ...
-        'LineWidth'   , 0.6        );
-    set(gca,'Xlim',[-25 225]);
-    set(gca,'XTickLabel',[0 200], 'Xtick', [0 200])
-    set(gca, 'yticklabel',1:1:size(CSD_matrix3,1), 'Ytick', 1:1:size(CSD_matrix3,1));
-    xLabelText = 'Time from stimulus onset (ms)';  % greek letters in LaTeX Syntax
-    yLabelText = 'Electrode number';
-    hXLabel = xlabel(xLabelText);
-    hYLabel = ylabel(yLabelText);
-%     fig_title=sprintf('%s','Shank 3 ');
-    yaxis=ylim;
-    prestim_offset_y            = yaxis(1):1:yaxis(2);
-    prestim_offset_t            = ones(1, length(prestim_offset_y))*0;
-    hold on;plot(prestim_offset_t, prestim_offset_y, 'k', 'linewidth',1);
-    %         caxis([min(min(CSD_matrix2)) max(max(CSD_matrix2))]);
-    zLabelText = 'nA / mm^3';  % greek letters in LaTeX Syntax
-    hcb = colorbar('eastoutside');
-    h_bar = findobj(gcf,'Tag','Colorbar');
-    initpos = get(h_bar,'Position');
-    set(h_bar, ...
-        'Position',[initpos(1)+initpos(3)*2.5 initpos(2)+initpos(4)*0.3 ...
-        initpos(3)*0.4 initpos(4)*0.4]);
-    hcLabel = ylabel(hcb,zLabelText);
-    set(hcb,'YTickLabel',{'Sink','Source'}, 'Ytick', [min(min(CSD_matrix3)) max(max(CSD_matrix3))])
-    set(hcb, ...
-        'Box'         , 'on'     , ...
-        'TickDir'     , 'in'     , ...
-        'TickLength'  , [.010 .010] , ...
-        'LineWidth'   , 0.6);
-    set([gca, hXLabel, hYLabel], ...
-        'FontSize'   , FontSize    , ...
-        'FontName'   , FontName);
-    set([hcb, hcLabel], ...
-        'FontSize'   , 10    , ...
-        'FontName'   , FontName);
-    ylabh=get(hcb,'Ylabel');
-    set(ylabh,'Position',get(ylabh,'Position')-[8 0 0]);
-    set(gca,'Layer', 'top');
-    drawnow
+%     subplot(1, 3, 3);
+%     colorDepth = 1000;
+%     colormap(flipud(jet(colorDepth)));
+%     %         pcolor(X2, 1:1:size(CSD_matrix2,1), CSD_matrix2);
+%     imagesc(X2(476:726),[],CSD_matrix3(:,476:726))
+%     shading interp; % do not interpolate pixels
+%     axis on; % display axis
+%     axis tight;% no white borders
+%     set(gca, ...
+%         'Box'         , 'off'      , ...
+%         'TickDir'     , 'in'      , ...
+%         'Ydir'        , 'reverse', ...
+%         'TickLength'  , [.01 .01] , ...
+%         'XMinorTick'  , 'off'      , ...
+%         'YMinorTick'  , 'off'     , ...
+%         'XGrid'       , 'off'     , ...
+%         'YGrid'       , 'off'     , ...
+%         'XColor'      , [.0 .0 .0], ...
+%         'YColor'      , [.0 .0 .0], ...
+%         'LineWidth'   , 0.6        );
+%     set(gca,'Xlim',[-25 225]);
+%     set(gca,'XTickLabel',[0 200], 'Xtick', [0 200])
+%     set(gca, 'yticklabel',1:1:size(CSD_matrix3,1), 'Ytick', 1:1:size(CSD_matrix3,1));
+%     xLabelText = 'Time from stimulus onset (ms)';  % greek letters in LaTeX Syntax
+%     yLabelText = 'Electrode number';
+%     hXLabel = xlabel(xLabelText);
+%     hYLabel = ylabel(yLabelText);
+% %     fig_title=sprintf('%s','Shank 3 ');
+%     yaxis=ylim;
+%     prestim_offset_y            = yaxis(1):1:yaxis(2);
+%     prestim_offset_t            = ones(1, length(prestim_offset_y))*0;
+%     hold on;plot(prestim_offset_t, prestim_offset_y, 'k', 'linewidth',1);
+%     %         caxis([min(min(CSD_matrix2)) max(max(CSD_matrix2))]);
+%     zLabelText = 'nA / mm^3';  % greek letters in LaTeX Syntax
+%     hcb = colorbar('eastoutside');
+%     h_bar = findobj(gcf,'Tag','Colorbar');
+%     initpos = get(h_bar,'Position');
+%     set(h_bar, ...
+%         'Position',[initpos(1)+initpos(3)*2.5 initpos(2)+initpos(4)*0.3 ...
+%         initpos(3)*0.4 initpos(4)*0.4]);
+%     hcLabel = ylabel(hcb,zLabelText);
+%     set(hcb,'YTickLabel',{'Sink','Source'}, 'Ytick', [min(min(CSD_matrix3)) max(max(CSD_matrix3))])
+%     set(hcb, ...
+%         'Box'         , 'on'     , ...
+%         'TickDir'     , 'in'     , ...
+%         'TickLength'  , [.010 .010] , ...
+%         'LineWidth'   , 0.6);
+%     set([gca, hXLabel, hYLabel], ...
+%         'FontSize'   , FontSize    , ...
+%         'FontName'   , FontName);
+%     set([hcb, hcLabel], ...
+%         'FontSize'   , 10    , ...
+%         'FontName'   , FontName);
+%     ylabh=get(hcb,'Ylabel');
+%     set(ylabh,'Position',get(ylabh,'Position')-[8 0 0]);
+%     set(gca,'Layer', 'top');
+%     drawnow
 %     
 %     nrm = input('Do you want to normalize the CSD plot? Y/N:','s');
 %     clear nrm_CSD_matrix

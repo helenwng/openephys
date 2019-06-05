@@ -48,8 +48,10 @@ x(i,:) = (1:numbars) - groupwidth/2 + (2*i-1) * groupwidth / (2*numconds); % Ali
 errorbar(x(i,:), mean_data(:,i),se_data(:,i), se_data(:,i), 'k', 'linestyle', 'none');
 end
 
-set(get(gca,'YLabel'),'String',ylabel,'Fontsize',24)
-set(gca,'XTicklabel','L2/3| L4| L5A| L5B| L6','Fontsize',24)
+set(get(gca,'YLabel'),'String',ylabel,'Fontsize',16)
+% set(gca,'XTicklabel','L2/3| L4| L5A| L5B| L6','Fontsize',24)
+set(gca,'XTicklabel',{'L2/3', 'L4', 'L5A', 'L5B', 'L6'},'Fontsize',16)
+
 % set(h(1),'FaceColor','k','EdgeColor','k');
 % if length(h) > 1
 %     set(h(2),'FaceColor','b','EdgeColor','b');
@@ -72,12 +74,15 @@ SUs = find(clusttype==1);
 MUs = find(clusttype==2);
 
 if length(h) > 1
-    plot(layer_ind(:,SUs),data2plot(:,SUs),'r.-','MarkerSize',24)
+    plot(layer_ind(:,SUs),data2plot(:,SUs),'.-','color',[.5 .5 .5],'MarkerSize',24)
     plot(layer_ind(:,MUs),data2plot(:,MUs),'rs--','MarkerSize',24)
 else
-    plot(layer_ind(:,SUs),data2plot(:,SUs),'r.','MarkerSize',24)
+    plot(layer_ind(:,SUs),data2plot(:,SUs),'.','color',[.5 .5 .5],'MarkerSize',24)
     plot(layer_ind(:,MUs),data2plot(:,MUs),'rs','MarkerSize',24)
 end
+
+xax = get(gca,'xlim');
+line(xax,[-1/3 -1/3],'linestyle','--')
 
 % paired ttest
 % laynums = unique(layers);

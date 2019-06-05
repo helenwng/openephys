@@ -11,9 +11,9 @@ for n = 1:length(good_units)
     [~, lags] = xcorr(unit_spiketrain);
     refr_idx(n) = sum(lags<=2&lags>=-2)/length(unit_times_ms)*100;     % %refractory period violations
 
-    % get SNR for unit
-    SNR(n) = waveformSNR(good_units(n),unit_times,nchs,exp_system,exp_path);
-    
+%     % get SNR for unit
+%     SNR(n) = waveformSNR(good_units(n),unit_times,nchs,exp_system,exp_path);
+    SNR(n) = nan;
 end
 
 end

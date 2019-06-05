@@ -138,7 +138,7 @@ elseif strcmp(exp_type,'trains')
         light_dur(t) = length(light_start(t):light_end(t))/1000;
         light_sum(t) = sum(light_out(tt,:)>light_thresh);     % sum of light pulses - used to figure out frequency
     end
-    pulse_dur = round(mean(light_pulsedur));       % in sec
+    pulse_dur = mode(light_pulsedur);       % in sec
 %     light_dur = round(max(light_dur));              % in case of trials with only single pulse, still consider light duration of trials with multiple pulses
     light_hz = round(ceil(light_sum./(pulse_dur)));     % get the light frequencies for each trial (use floor in case ex. sum of 40Hz trial is 81 instead of 80)
     light_hz(light_hz>40&light_hz<=41) = 40;
@@ -177,7 +177,7 @@ else                % simple step function
 %     end
     
     if length(intensities) > 1              % if this experiment involved light steps at different intensities - use LED input to determine intensities
-        small_diffs = find(diff(intensities) < .2);         % to account for minor variability amongst intensities
+        small_diffs = find(diff(intensities) < .1);         % to account for minor variability amongst intensities
         if ~isempty(small_diffs)
     %         find((light_inten == intensities(small_diffs)) | (light_inten == intensities(small_diffs+1)))
             orig_intensities = intensities;

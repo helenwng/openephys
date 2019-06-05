@@ -2,7 +2,7 @@ function [psth,psth_FR] = make_psth_v2(binsize,edges,which_trials,spike_raster,a
 
 % binsize = size of bin in seconds
 % edges = vector 0:binsize:totaltrialtime
-% which_trials = 1xnum_trials vector of 1s and 0s, 1s indicating trials to look
+% which_trials = 1xnum_trials logical array of 1s and 0s, 1s indicating trials to look
 % at
 % spike_raster = num_trials x time (totaltime*1000, so in 1000Hz samp rate)
     % matrix of 1s and 0s indicating when spikes occurred

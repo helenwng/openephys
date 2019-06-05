@@ -7,14 +7,20 @@ load('data.mat','field_trials','LED','amp_sr')
 load('light_params.mat','all_light')
 if strcmpi(exp_system,'openephys')
     clusters = readNPY(sprintf('%s\\spike_clusters.npy',exp_path));
-    templates = readNPY(sprintf('%s\\spike_templates.npy',exp_path));
-    load('rez.mat');
+    if exist('spike_templates.npy','file')
+        templates = readNPY(sprintf('%s\\spike_templates.npy',exp_path));
+        load('rez.mat');
+    elseif exist('..\spike_templates.npy','file')
+        exp_path = fileparts(exp_path);
+        templates = readNPY(sprintf('%s\\spike_templates.npy',exp_path));
+        load(fullfile(exp_path,'rez.mat'));   
+    end
 end
-[spike_times,clusters] = clean_light_artifacts(field_trials,LED,spike_times,clusters,amp_sr);      % NEW MAK addition 2/26/17 - get rid of light artifacts mistaken for spikes - modified and confirmed works 8/9/17
-if strcmpi(exp_system,'openephys')
-    load('dropped_spikes.mat')
-    templates(dropped_spikes')=[];
-end
+% [spike_times,clusters] = clean_light_artifacts(field_trials,LED,spike_times,clusters,amp_sr);      % NEW MAK addition 2/26/17 - get rid of light artifacts mistaken for spikes - modified and confirmed works 8/9/17
+% if strcmpi(exp_system,'openephys')
+%     load('dropped_spikes.mat')
+%     templates(dropped_spikes')=[];
+% end
 sampleTimes = spike_times(clusters==unit);
 window = [-12 16];
 nToRead = [];
@@ -23,7 +29,8 @@ s = dir(exp_path);
 if strcmpi(exp_system,'intan')
     key = 'amplifier';
 else
-    key = '.dat';
+%     key = '.dat';
+    key = '.bin';       % changed with concatenating files
 end
 for i=1:length(s)
     if strfind(s(i).name,key) 

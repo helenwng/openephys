@@ -11,14 +11,14 @@ function make_raster_plot_v2(spike_raster,prestim,totaltime,light_trialtypes,lig
     % pulse_dur in trains experiments)
 
 num_trials = size(spike_raster,1);
-    color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2]; % for graphing purposes (first is black, last is green)
+    color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2; 0 .8 1; 0 0 1]; % for graphing purposes (first is black, last is green)
 
 time_vec = linspace(-prestim,totaltime-prestim,size(spike_raster,2));      % for x-axis 
 cond_colors = ones(1,num_trials);      % just in case you have multiple conditions
 
 
 % if light experiment, add blue shading on raster
-if length(unique(light_trialtypes)) > 1         % it was an opto experiment if there's more than one "light" condition (one condition would be nolight)
+if find(light_trialtypes)         % it was an opto experiment if there's more than one "light" condition (one condition would be nolight)
     [cond,idx] = sort(light_trialtypes);    % sort trials by light conditions
     diff_conds = unique(cond);
     new_spike_rast = spike_raster(idx,:);             % reordered according to light condition
@@ -43,7 +43,9 @@ if length(unique(light_trialtypes)) > 1         % it was an opto experiment if t
         elseif diff_conds(c)         % any other light condition
             patch([x1(c-sum(diff_conds==0)) x1(c-sum(diff_conds==0)) x1(c-sum(diff_conds==0))+pulse_dur(c) x1(c-sum(diff_conds==0))+pulse_dur(c) x1(c-sum(diff_conds==0))],[start_patch end_patch end_patch start_patch start_patch], [0.8 0.8 0.9], 'LineStyle', 'none', 'FaceAlpha',.75)
         end
-        line([-prestim totaltime-prestim], [end_patch end_patch]','Color','r','LineStyle','--')
+        if length(diff_conds)>1
+            line([-prestim totaltime-prestim], [end_patch end_patch]','Color','r','LineStyle','--')
+        end
     end
     hold on
 end

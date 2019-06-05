@@ -1,4 +1,4 @@
-function openEphys2matlab(exp_path)
+function openEphys2matlab_sparsenoise(exp_path)
 %extracts info from open Ephys files
 %to do: write code to detect all
 %continuous files in exp_path, separate aux and electrodes and load all
@@ -38,22 +38,21 @@ if first_half
 else
     contfile = fullfile(exp_path,'100_CH65.continuous');
 end
-[~, dataTime, dataInfo] = load_open_ephys_data(contfile);       % changed from using 'faster' because I think times are less accurate?? - MAK 4/13/18
-% dataTime = dataTime./dataInfo(1).header.sampleRate;       % uncomment if using load_open_ephys_data_faster
+[~, dataTime, dataInfo] = load_open_ephys_data_faster(contfile);
+dataTime = dataTime./dataInfo(1).header.sampleRate;       % uncomment if using load_open_ephys_data_faster
 nsamples = length(dataTime);
-
 
 %load ADC inputs
 for i = 1:nADC
     [ADCin(i,:),ADCTime(i,:),ADCinfo(i,:)] = load_open_ephys_data_faster(fullfile(exp_path,adcfiles{i}));
-    [ADCin_2(i,:),ADCTime_2(i,:),ADCinfo_2(i,:)] = load_open_ephys_data_faster(fullfile(exp_path,adcfiles{i}));
 end
 ADCTime = ADCTime./ADCinfo(1).header.sampleRate;
 
 %load all_channels.events
 eventfile = fullfile(exp_path,'all_channels.events');
-[events,eventTime,info] = load_open_ephys_data(eventfile);
+[events,eventTime,info] = load_open_ephys_data_faster(eventfile);
  amp_sr = info.header.sampleRate;
+ eventIdx = floor((eventTime-dataTime(1))*amp_sr+1);
 % for i = 1:length(eventTime)                           % only use when timing between events and continuous files are off
 %     [~,eventIdx(i)] = min(abs(dataTime-eventTime(i))); 
 % end
@@ -62,18 +61,6 @@ eventfile = fullfile(exp_path,'all_channels.events');
 % [dataTime(eventIdx(1:20)) eventTime(1:20)]
 % dataTime(eventIdx(nsamples-10:nsamples))
 % eventTime(nsamples-10:nsamples)
-
-% check for gaps in dataTime and adjust dataTime and eventTimes accordingly
-if sum(diff(dataTime).*amp_sr >= 2)   % if theres a gap of 2 or more samples between data points
-    warning(sprintf('Warning: there are %d gaps in the data files',sum(diff(dataTime).*amp_sr >= 2)))
-    gap_ts = find(diff(dataTime).*amp_sr>=2);
-    for tt = 1:length(gap_ts)
-        gap(tt) = diff([dataTime(gap_ts(tt)),dataTime(gap_ts(tt)+1)]);
-        dataTime(gap_ts(tt)+1:end) = dataTime(gap_ts(tt)+1:end) - gap(tt) + 1/amp_sr;
-        eventTime(eventTime*amp_sr>=gap_ts(tt)) = eventTime(eventTime*amp_sr>=gap_ts(tt)) - gap(tt) + 1/amp_sr;
-    end
-end
-eventIdx = floor((eventTime-dataTime(1))*amp_sr+1);
 
 % in case of weird event where analog and data file lengths don't match
 if size(ADCin,2)~=nsamples
@@ -103,6 +90,10 @@ photo = ADCin(1,:);
 LED = ADCin(2,:);
 clear ADCin
 
+%getSyncTimes for "re"
+[re]= getSyncTimesRevCorr_sparsenoise(photo',(1/amp_sr));
+
+
 %digital events
 epoc = zeros(size(dataTime));
 encdA = zeros(size(dataTime));
@@ -122,11 +113,16 @@ div             = amp_sr/1000;
 zx              = 1:div:LN;
 izx             = floor(zx);
 time_index      = dataTime(izx)-dataTime(1);    % downsample from 20000 hz to 1000 hz
+pho             = photo(izx);       % downsample
 clear izx zx
 % epocOn = epocOn(izx);
 % epocOff = epocOff(izx);
 
-% if epocOn(1)<epocOff(1) 
+max_pho = max(pho);
+min_pho = min(pho);
+mid_pho = (max_pho-min_pho)/2 + min(pho);
+
+if epocOn(1)<epocOff(1) 
     if size(epocOn,1 )> size(epocOff,1)   % if experiment got cut off in middle of trial...
         epocOn = epocOn(1:size(epocOff,1));         % ...drop the last trial
     elseif length(epocOn)==(length(epocOff)-1)
@@ -147,7 +143,7 @@ clear izx zx
             epoc(epocOn(i):end) = ones(1,nsamples-epocOn(i));
         end
     end
-% end
+end
 
 % load analyzer - check for postdelay
 s = dir; 
@@ -155,17 +151,36 @@ for i=1:length(s)
     if strfind(s(i).name,'.analyzer') 
         analyze_file = s(i).name;
         load(sprintf('%s/%s',exp_path,analyze_file),'-mat') ;    % load analyzer file with stimulus info
-        if size(field_trials,1) > Analyzer.M.NumTrials          % TEMP - when files were concatenated, cut off extra trials from end
-            field_trials = field_trials(1:Analyzer.M.NumTrials,:);
-        end
         postdelay = Analyzer.P.param{2}{3};
+        stimtime = Analyzer.P.param{3}{3};
+        h_per = Analyzer.P.param{14}{3};        % frames per stimulus (= refresh rate (60hz) / stim per sec)
         postdelay_samps = postdelay*amp_sr;
-        field_trials(:,2) = field_trials(:,2)-postdelay_samps;
+        postdelay_ms = postdelay_samps/div;
+%         field_trials(:,2) = field_trials(:,2)-postdelay_samps;
     end
 end
 
 %downsample field_trials for Megan's code:
 field_trials =  floor(field_trials./div)+1;
+field_trials((diff(field_trials,[],2)<1000),:) = [];           % find faulty field_trial starttimes
+re = floor(re./div)+1;      % now in ms!
+
+bad_res = [find(diff(re)>postdelay_ms)+1; find(diff(re)>postdelay_ms)+2];
+stim_times = re;
+stim_times(bad_res) = [];
+start_times = [re(1); re(find(diff(re)>postdelay_ms)+1)];       % should be one more than number of trials because last "starttime" should actually be the end time
+if sum(floor(diff(start_times)/1000)~=(postdelay+stimtime))
+    error('trial starttimes incorrectly assigned!')
+end
+start_times(end) = [];
+% check number of trials
+if (stimtime/4)*Analyzer.L.NumTrials ~= size(field_trials,1)    % assumes epoch signal every four sec
+    error('incorrect number of trials!')
+end
+% check number of individual stimuli
+if length(stim_times) ~= length(start_times)*(stimtime*(60/h_per))       % assumes 60hz refresh rate
+    error('incorrect number of individual stimuli!')
+end
 
 %find encdA on and off times and fill out binary vector same size as data
 encdAOn = eventIdx(events==encdACH&info.eventId&info.eventType==3);
@@ -214,15 +229,37 @@ else
     end
 end
 
-clear dataTime dataInfo ADCinfo adcfiles encdAOff encdAOn encdBOff encdBOn epocOff epocOn events eventTime LN s
-%getSyncTimes for "re"
-[re]= getSyncTimesRevCorr_AC(photo',(1/amp_sr));
-
-%todo - write code for when recording starts during a trial ->
-%epocOff(1)<epocOn(1)
-
 %save variables in data.mat
 cd(exp_path)
-save('data.mat', 'trials','field_trials','amp_sr','photo','LED','epoc','encdA','encdB','re','time_index')
+save('data.mat', 'trials','field_trials','amp_sr','photo','LED','epoc','encdA','encdB','re','time_index','stim_times','start_times')
 
+end
+
+function [re]= getSyncTimesRevCorr_sparsenoise(x,sp)   %%x is Phot, sp is sampling period (1/24414.1)
+
+% sigma = 15/4881.82/sp;          %%I am iffy on why the sigma is this   NEED TO CHECK ON THIS (MAK)
+sigma = 15/(inv(sp)/5)/sp;          %%I am iffy on why the sigma is this   NEED TO CHECK ON THIS (MAK)
+size = length(x);
+z = linspace(-size / 2, size / 2, size);
+gaussFilter = exp(-z .^ 2 / (2 * sigma ^ 2));
+gaussFilter = gaussFilter / sum (gaussFilter); % normalize
+gaussFilterNorm = gaussFilter';
+%sig = 15/4882.81/sp;
+
+%h = fspecial('gaussian', [length(x) 1], sig);
+
+x = ifft(fft(x).*abs(fft(gaussFilterNorm)));
+
+thresh =(max(x)+min(x))*.5;
+
+x = (sign(x-thresh) + 1)/2;
+
+x = diff(x);
+% id = find(x<0); %Get rid of falling edges
+% x(id) = 0;
+
+% re_i = find(x);  %Index values of rising edges
+re = find(x);   % Index values of rise AND fall edges
+% re = re_i*sp;           %%this will be the vector for the timestamps (rising phase of photodiode signal). you need to remove the first 2 and the last 2 timestamps. Timestamps signify the end of a four second balack to gray period.
+%re_r = round(re);
 end

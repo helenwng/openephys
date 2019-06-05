@@ -13,7 +13,7 @@ function make_psth_plot_v2(psth,binsize,prestim,stimtime,totaltime,all_light_tri
 % light_dur = duration of light pulse (in sec) (if not an opto
     % experiment, should be [])
     
-color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2]; % for graphing purposes (first is black, last is green)
+color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2;0 .8 1; 0 0 1]; % for graphing purposes (first is black, last is green)
 
 edges_stim = [-prestim:binsize:(totaltime-prestim-binsize)]'; % x signifies the timepoint of the START of the bin
 for c = 1:size(psth,1)
@@ -26,7 +26,7 @@ lightconds = unique(all_light_trials);      % different light conditions
 xlim([-prestim totaltime-prestim-binsize])  % because points mark the START of the bin
 set(gca,'XMinorTick','on')
 yax = get(gca,'YLim');
-line([0 0], [0 yax(2)]','Color','r','LineStyle','--','LineWidth',2)
+line([0 0], [0 yax(2)]','Color','k','LineStyle','--','LineWidth',2)
 % line([stimtime stimtime], [0 yax(2)]','Color','r','LineWidth',2)
 xlabel('Time (sec)','fontsize',14)
 ylabel('spikes/sec','Fontsize',14)
@@ -44,7 +44,7 @@ if length(lightconds)>1         % if multiple light conditions
             patch_start(c) = edges_stim(find(x1(c)-edges_stim>0,1,'last'));     % in case light doesn't evenly start at the beginning of a bin - start the light patch at the earliest bin with any light in it
             xx = [patch_start(c) patch_start(c) patch_start(c)+light_dur(c+sum(lightconds==0)) patch_start(c)+light_dur(c+sum(lightconds==0)) patch_start(c)];
             yy = [0 yax(2) yax(2) 0 0];
-            patch(xx, yy, -1 * ones(size(xx)), [0.8 0.8 0.9], 'LineStyle', 'none')
+            patch(xx, yy, -1 * ones(size(xx)), [0.8 0.8 0.9], 'LineStyle', 'none', 'FaceAlpha',.75)
         end
     end
 end
