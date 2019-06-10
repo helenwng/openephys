@@ -23,6 +23,6 @@ w2 = w;
 w2(w>(N*dw/2)) = w2(w>(N*dw/2))-N*dw;
 df = w2(w2>=0)/(2*pi);
 Fratio = Fnorm(df==tfreq,:)./Fnorm(1,:);
-% figure;semilogy(df,abs(Fnorm(1:41,1)),'r.-')
+% figure;semilogy(df,abs(Fnorm(1:length(df),1)),'r.-')
 
 end

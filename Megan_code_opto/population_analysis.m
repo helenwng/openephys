@@ -213,6 +213,11 @@ if strcmpi(proj,'LP')
             shanks = {[0],[2:3]};
             probe = '128DN_bottom';
             lightcond = 2;
+        elseif strcmpi(exp_type,'trains') && strcmpi(area,'LPlateral')
+            exp_paths = {'H:\LPproject\MCTRL3\LP\2019-02-22_15-40-44_LP_trains'};
+            shanks = {[2:3]};
+            probe = '128DN_bottom';
+            lightcond = 2;
         elseif strcmpi(exp_type,'step') && strcmpi(area,'LGN')
             exp_paths = {'J:\LPproject\MCTRL2\2019-01-21_14-58-23_LP_diffintensities'};
             shanks = {[1:3]};
@@ -756,6 +761,7 @@ if contains(exp_type,'trains')
 end
 
 %% F1/F0 response analysis
+
 binsize = .025;
 % pref_psth = nan(length(0:binsize:params(exp_num(clean_units(i))).stimtime-binsize),length(conds)+1,length(clean_units)); 
 psthV(:,:,:) = reshape(cell2mat(arrayfun(@(x) x.psthVisual([conds end],:), FRs(clean_units),'uniformoutput',0)),length(conds)+1,size(FRs(1).psthVisual,2),length(clean_units));
@@ -774,7 +780,20 @@ for i = 1:length(clean_units)
     % for all visual stim trials:
     % but how should I handle psths with negative values?? (i.e. units
     % suppressed by vis stim)
-    Fratio(i,:) = calc_F1F0(psthV(:,21:end,i)',binsize,2);        % **currently hardcoded for 2Hz tfreq - will need to change!!
+    Fratio(i,:) = calc_F1F0(psthV(:,(vis_start/1000)/binsize+1:end,i)',binsize,2);        % **currently hardcoded for 2Hz tfreq - will need to change!!
+end
+
+% for trains experiments, also find power at 10hz frequency in no light and
+% 10hz conds
+Fratio_10hz = nan(length(clean_units),2);
+if contains(exp_type,'trains')
+    for i = 1:length(clean_units)
+        for ii=[1,3]    % manually set for first (no light) and third (10Hz) light conds
+            light_start = round(params(exp_num(clean_units(i))).av_light_start(lightcond));
+            light_dur = params(exp_num(clean_units(i))).light_dur(lightcond+1);
+            Fratio_10hz(i,round(ii/2)) = calc_F1F0(psthV(ii,light_start/binsize+1:(light_start+light_dur)/binsize,i)',binsize,10);
+        end
+    end
 end
 
 %% get preferred stimulus FR for each condition (but preferred stimulus defined in no light condition)

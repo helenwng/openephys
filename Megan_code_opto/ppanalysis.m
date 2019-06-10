@@ -15,7 +15,7 @@ which_cond = find(light_conds==Hz);
 light_bins = (prestim+light_start)/binsize+1:(prestim+light_start+light_dur)/binsize;   % bins from which to extract threshold (light period)
 
 % thresh = mean(psth(which_cond,:))+2*std(psth(which_cond,:));
-thresh = mean(psth(light_conds==0,light_bins))+2*std(psth(light_conds==0,light_bins));       % set threshold as 2stds above mean, during light period in NO LIGHT condition
+thresh = mean(psth(light_conds==0,light_bins))+3*std(psth(light_conds==0,light_bins));       % set threshold as 3stds above mean, during light period in NO LIGHT condition
 hz_times = light_start:1/Hz:light_start+light_dur-(1/Hz);     % [.5:.1:1.4]
 for t = 1:length(hz_times)  % count spikes in 50ms after each pulse
     resps{t} = find(psth(which_cond,times>=hz_times(t) & times<hz_times(t)+.05)>=thresh)+find(times>=hz_times(t),1,'first')-1;   % hardcoded for 10hz cond - assumes it's 3rd lightcond!

@@ -226,3 +226,30 @@ cd(exp_path)
 save('data.mat', 'trials','field_trials','amp_sr','photo','LED','epoc','encdA','encdB','re','time_index')
 
 end
+
+function [re]= getSyncTimesRevCorr_AC(x,sp)   %%x is Phot, sp is sampling period (1/24414.1)
+
+sigma = 15/4881.82/sp;          %%I am iffy on why the sigma is this   NEED TO CHECK ON THIS (MAK)
+size = length(x);
+z = linspace(-size / 2, size / 2, size);
+gaussFilter = exp(-z .^ 2 / (2 * sigma ^ 2));
+gaussFilter = gaussFilter / sum (gaussFilter); % normalize
+gaussFilterNorm = gaussFilter';
+%sig = 15/4882.81/sp;
+
+%h = fspecial('gaussian', [length(x) 1], sig);
+
+x = ifft(fft(x).*abs(fft(gaussFilterNorm)));
+
+thresh =(max(x)+min(x))*.75;        % changed from .5 2/26/19 MAK
+
+x = (sign(x-thresh) + 1)/2;
+
+x = diff(x);
+id = find(x<0); %Get rid of falling edges
+x(id) = 0;
+
+re_i = find(x);  %Index values of rising edges
+re = re_i*sp;           %%this will be the vector for the timestamps (rising phase of photodiode signal). you need to remove the first 2 and the last 2 timestamps. Timestamps signify the end of a four second balack to gray period.
+%re_r = round(re);
+end

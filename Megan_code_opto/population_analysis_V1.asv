@@ -72,6 +72,7 @@ for i = 1:length(exp_paths)
     else
         inds = regexp(out{end},'_\d','start');  % looks for what's before an underscore followed immediately by a number; uses that as exp_name
         exp_name = out{end}(1:inds(1)-1);
+  
         if sum(isstrprop(exp_name,'digit'))>4       % this means it's an OpenEphys file (because it names files starting with the date)
             inds = regexp(out{end},'_\D','start');
             if strfind(out{end}(inds(1):end),an_name)
@@ -80,8 +81,8 @@ for i = 1:length(exp_paths)
                 exp_name = strcat(an_name,out{end}(inds(1):end));
             end
         end
-    end
-    exp_dir = strcat(main_dir,'\',exp_name);
+end
+    exp_dir = strcat(main_dir,'\',exp_name,exp_type);
     if ~exist(exp_dir,'dir') && exist(sprintf('%s\\%s\\%s',main_dir,an_name,exp_name))       % need better solution for this
         exp_dir = sprintf('%s\\%s\\%s',main_dir,an_name,exp_name);
     end
@@ -390,7 +391,6 @@ end
 % end
 
 %%
-area_color = [.5 .5 .5];
 if contains(mani,'trains')    
     all_lightconds = [lightconds{:}];
     % check if different experiments used same light trains conditions
@@ -407,7 +407,7 @@ if contains(mani,'trains')
         resp_t_bl{ii} = resp_t_v{ii};
         ppr_bl{ii} = ppr_v{ii};
         resp_dur_bl{ii} = resp_dur_v{ii};
-        for i = 1:length(clean_units)
+        for i = 1:length(clean_units_trains)
             vis_inds = (params(exp_num(clean_units(i))).trial_type(:,1)==1);
            [resp_t_v{ii}(i,:), resp_dur_v{ii}(i,:), ppr_v{ii}(i,:)]  = ppanalysis(params(exp_num(clean_units(i))).prestim, params(exp_num(clean_units(i))).stimtime, round(mean(params(exp_num(clean_units(i))).av_light_start))-params(exp_num(clean_units(i))).prestim, max(params(exp_num(clean_units(i))).light_dur), lightconds{1}(ii+2), unitinfo(clean_units(i)).rast(vis_inds,:), params(exp_num(clean_units(i))).trial_type(vis_inds,strcmpi(params(exp_num(clean_units(i))).IVs,'light_bit'))) ;
            [resp_t_bl{ii}(i,:), resp_dur_bl{ii}(i,:), ppr_bl{ii}(i,:)]  = ppanalysis(params(exp_num(clean_units(i))).prestim, params(exp_num(clean_units(i))).stimtime, round(mean(params(exp_num(clean_units(i))).av_light_start))-params(exp_num(clean_units(i))).prestim, max(params(exp_num(clean_units(i))).light_dur), lightconds{1}(ii+2), unitinfo(clean_units(i)).rast(~vis_inds,:), params(exp_num(clean_units(i))).trial_type(~vis_inds,strcmpi(params(exp_num(clean_units(i))).IVs,'light_bit'))) ;
