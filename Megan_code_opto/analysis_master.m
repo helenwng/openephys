@@ -92,13 +92,13 @@ elseif strcmpi(exp_system,'openephys')
 end
     
 % set up where to store results
-if contains(exp_name,'M') || contains(exp_name,'D') || contains(exp_name,'VH')
+% if contains(exp_name,'M') || contains(exp_name,'D') || contains(exp_name,'VH')
     full_dir = 'H:\LPproject\LPresults';        % where you want to save data
-elseif contains(exp_name,'TH')
-    full_dir = 'H:\Tlx3project\Haloresults';
-else
-    full_dir = 'H:\Tlx3project\ChR2results';
-end
+% elseif contains(exp_name,'TH')
+%     full_dir = 'H:\Tlx3project\Haloresults';
+% else
+%     full_dir = 'H:\Tlx3project\ChR2results';
+% end
 
 main_dir = strcat(full_dir, '\',an_name);
 exp_dir = strcat(main_dir,'\',exp_name);
@@ -120,13 +120,21 @@ if exist('spike_times.npy','file')       % one of the outputs of kilosort
     if exist('rez.mat','file')
         load('rez.mat');          % load rez.mat output from kilo (for waveform extraction)
         % get cluster group
-        fid = fopen('cluster_groups.csv');
+        if exist('cluster_group.tsv','file')
+            fid=fopen('cluster_group.tsv');     % new phy2 output
+        else
+            fid = fopen('cluster_groups.csv');
+        end
         cat_data = 0;
     elseif exist('..\rez.mat','file')       % this means files were concatenated
         cat_data = 1;
         load('..\rez.mat');
         % get cluster group
-        fid = fopen('..\cluster_groups.csv');
+        if exist('..\cluster_group.tsv','file')
+            fid=fopen('..\cluster_group.tsv');     % new phy2 output
+        else
+            fid = fopen('..\cluster_groups.csv');
+        end
     else
         warning('missing rez.mat\n')
     end

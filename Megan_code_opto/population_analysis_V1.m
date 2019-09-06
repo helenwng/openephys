@@ -1,4 +1,4 @@
-function population_analysis_V1(pop,mani,exp_type)
+function population_analysis_V1(pop,mani)
 % pop = population (e.g., 'L6')
 % mani = manipulation (e.g., 'ChR2')
 
@@ -14,21 +14,30 @@ elseif strcmpi(pop,'L6') && strcmpi(mani,'halo_new')
         'J:\LPproject\MH22\V1\2019-04-26_12-33-34_V1_Halo_4.5mW'};
     shanks = {[0,1],[0,1],[0,1],[0,1]};
 elseif strcmpi(pop,'L6') && strcmpi(mani,'ChR2')
-    exp_paths = {'H:\LPproject\M38\2019-05-24_12-46-43_V1_diffintensities'};
-%         'J:\LPproject\M39\2019-05-23_12-05-08_V1_diffintensities'};
-%         'J:\LPproject\M32\V1\2019-02-14_16-40-51_V1_diffintensities',...
-%         'J:\LPproject\M36\V1\2019-02-21_15-36-40_V1_diffintensities'};
-    shanks = {[0,1]};
+    exp_paths = {'H:\LPproject\M38\2019-05-24_12-46-43_V1_diffintensities',...
+        'J:\LPproject\M39\2019-05-23_12-05-08_V1_diffintensities',...
+        'J:\LPproject\M40\2019-05-25_14-09-42_V1_diffintensities',...
+        'J:\LPproject\M32\V1\2019-02-14_16-40-51_V1_diffintensities',...
+        'J:\LPproject\M36\V1\2019-02-21_15-36-40_V1_diffintensities'};
+    shanks = {[0,1],[0,1],[0,1],[0],[0]};
 elseif strcmpi(pop,'L6') && strcmpi(mani,'ChR2_trains')
     exp_paths = {'H:\LPproject\M38\2019-05-24_13-52-50_V1_trains',...
-        'J:\LPproject\M39\2019-05-23_13-12-13_V1_trains'};
-    shanks = {[0,1],[0,1]};
+        'J:\LPproject\M39\2019-05-23_13-12-13_V1_trains',...
+        'J:\LPproject\M40\2019-05-25_15-07-54_V1_trains'};
+    shanks = {[0,1],[0,1],[0,1]};
 elseif strcmpi(pop,'L5') && strcmpi(mani,'ChR2_dilute')
     exp_paths = {'J:\LPproject\NPRN4\2019-04-03_14-21-04_V1_diffintensities'};
     shanks = {0};
 elseif strcmpi(pop,'L5') && strcmpi(mani,'ChR2')
     exp_paths = {'J:\LPproject\NPRN5\2019-04-03_16-57-37_V1_diffintensities'};
     shanks = {0};
+elseif strcmpi(pop,'L5') && strcmpi(mani,'halo_clean')
+    exp_paths = {'J:\LPproject\NPRH2\V1\2019-06-26_13-38-51_V1_halo'};
+    shanks = {0};
+elseif strcmpi(pop,'L5') && strcmpi(mani,'halo_notclean')
+    exp_paths = {'J:\LPproject\NPRH1\V1\2019-06-26_16-56-05_V1_halo',...
+        'J:\LPproject\NPRH3\V1\2019-06-28_12-04-49_V1_halo'};
+    shanks = {0,0};
 end
 
 main_dir = 'H:\LPproject\LPresults';
@@ -252,7 +261,7 @@ end
 % % clean_units = intersect(good_SNR,good_isi(cR<.3 | isnan(cR)));   % and exclude units with 30% or more contamination rate of other good_isi units (include NANs because doesn't necessarily mean they're bad)
 % clean_units = intersect(good_SNR,good_isi);    
  good_SNR = find(refV<.5);
-good_uQ = find(uQ>12);       % only include units with <25% contamination "false positive" rate
+good_uQ = find(uQ>16);       % only include units with <25% contamination "false positive" rate
 clean_units = intersect(good_SNR,good_uQ); 
 % clean_units = 1:length(unitinfo);
 
@@ -262,26 +271,37 @@ for i = 1:length(clean_units)      % for each unit
     tuning_curve{i} = tuning(nn).curve(:,:);
     oris = unique(params(exp_num(nn)).trial_type(:,strcmp(params(exp_num(nn)).IVs,'ori')));
         oris(oris>=999) = [];
-    % kruskal-wallis test to test for significant and visual- and light-modulation
+    % wilcoxen rank-sum test to test for significant and visual- and light-modulation
     % for visual modulation, find preferred direction trials - only use THESE
     % trials to test for significant visual modulation (in case of extremely
     % tuned cells)
     [~,prefdir_deg(i)] = max(abs(tuning_curve{i}(1,:)-repmat(FRb(i),1,size(tuning_curve,3))));   % direction w/ biggest change from baseline
     prefori_trials{i} = find(params(exp_num(nn)).trial_type(:,strcmpi(params(exp_num(nn)).IVs,'ori'))==oris(prefdir_deg(i)));
-    vis_sig(i) = kruskalwallis([sum(unitinfo(nn).rast(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}),round(1000*(params(exp_num(nn)).av_light_start(1)))+1:round(1000*(params(exp_num(nn)).av_light_start(1)))+params(exp_num(nn)).lighttime*1000),2)'...
-        sum(unitinfo(nn).rast(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)}),round(1000*(params(exp_num(nn)).av_light_start(1)))+1:round(1000*(params(exp_num(nn)).av_light_start(1)))+params(exp_num(nn)).lighttime*1000),2)'],...
-        [ones(1,length(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}))) 2*ones(1,length(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)})))],'off');    % significance of visual response (evoked periods of 1000ms in blank vs. visual trials)
-    vis_sig_ons(i) = kruskalwallis([sum(unitinfo(nn).rast(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}),1000*params(exp_num(nn)).prestim+1:1000*(params(exp_num(nn)).prestim+params(exp_num(nn)).onset)),2)'... 
-        sum(unitinfo(nn).rast(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)}),1000*params(exp_num(nn)).prestim+1:1000*(params(exp_num(nn)).prestim+params(exp_num(nn)).onset)),2)'],...
-        [ones(1,length(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}))) 2*ones(1,length(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)})))],'off');         % significance of visual response (100ms immediately following visual stimulus onset in blank vs. visual trials)
+    vis_sig(i) = ranksum(sum(unitinfo(nn).rast(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}),round(1000*(params(exp_num(nn)).av_light_start(1)))+1:round(1000*(params(exp_num(nn)).av_light_start(1)))+params(exp_num(nn)).lighttime*1000),2),... % significance of visual response (evoked periods of 1000ms in blank vs. visual trials)
+        sum(unitinfo(nn).rast(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)}),round(1000*(params(exp_num(nn)).av_light_start(1)))+1:round(1000*(params(exp_num(nn)).av_light_start(1)))+params(exp_num(nn)).lighttime*1000),2));
+    vis_sig_ons(i) = ranksum(sum(unitinfo(nn).rast(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}),1000*params(exp_num(nn)).prestim+1:1000*(params(exp_num(nn)).prestim+params(exp_num(nn)).onset)),2),...  % significance of visual response (100ms immediately following visual stimulus onset in blank vs. visual trials)
+        sum(unitinfo(nn).rast(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)}),1000*params(exp_num(nn)).prestim+1:1000*(params(exp_num(nn)).prestim+params(exp_num(nn)).onset)),2));
     for lc = 1:length(lightconds{exp_num(nn)})-1
-        light_sig(i,lc) = kruskalwallis([sum(unitinfo(nn).rast(nolight_trials{exp_num(nn)},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)))+params(exp_num(nn)).lighttime*1000),2)'...       % currently using ALL light trials to evaluate light significance (visual+blank)
-            sum(unitinfo(nn).rast(light_trials{exp_num(nn)}{lc},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)))+params(exp_num(nn)).lighttime*1000),2)'],...
-            [ones(1,length(nolight_trials{exp_num(nn)})) 2*ones(1,length(light_trials{exp_num(nn)}{lc}))],'off');    % significance of light-evoked response (evoked periods of 500ms in nolight vs. light trials (each condition separately))
-        light_sig_ons(i,lc) = kruskalwallis([sum(unitinfo(nn).rast(nolight_trials{exp_num(nn)},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)+params(exp_num(nn)).onset))),2)'...
-            sum(unitinfo(nn).rast(light_trials{exp_num(nn)}{lc},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)+params(exp_num(nn)).onset))),2)'],...
-            [ones(1,length(nolight_trials{exp_num(nn)})) 2*ones(1,length(light_trials{exp_num(nn)}{lc}))],'off');         % significance of light-evoked response at light onset (100ms after light onset in nolight vs light trials (each condition separately))
+        light_sig(i,lc) = ranksum(sum(unitinfo(nn).rast(nolight_trials{exp_num(nn)},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)))+params(exp_num(nn)).lighttime*1000),2),...       % currently using ALL light trials to evaluate light significance (visual+blank)
+            sum(unitinfo(nn).rast(light_trials{exp_num(nn)}{lc},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)))+params(exp_num(nn)).lighttime*1000),2));% significance of light-evoked response (evoked periods of 500ms in nolight vs. light trials (each condition separately))
+        light_sig_ons(i,lc) = ranksum(sum(unitinfo(nn).rast(nolight_trials{exp_num(nn)},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)+params(exp_num(nn)).onset))),2),...
+            sum(unitinfo(nn).rast(light_trials{exp_num(nn)}{lc},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)+params(exp_num(nn)).onset))),2)); % significance of light-evoked response at light onset (100ms after light onset in nolight vs light trials (each condition separately))
     end
+%   % previously using kruskalwallis - changed 7/21/19 MAK
+%     vis_sig(i) = kruskalwallis([sum(unitinfo(nn).rast(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}),round(1000*(params(exp_num(nn)).av_light_start(1)))+1:round(1000*(params(exp_num(nn)).av_light_start(1)))+params(exp_num(nn)).lighttime*1000),2)'...
+%         sum(unitinfo(nn).rast(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)}),round(1000*(params(exp_num(nn)).av_light_start(1)))+1:round(1000*(params(exp_num(nn)).av_light_start(1)))+params(exp_num(nn)).lighttime*1000),2)'],...
+%         [ones(1,length(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}))) 2*ones(1,length(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)})))],'off');    % significance of visual response (evoked periods of 1000ms in blank vs. visual trials)
+%     vis_sig_ons(i) = kruskalwallis([sum(unitinfo(nn).rast(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}),1000*params(exp_num(nn)).prestim+1:1000*(params(exp_num(nn)).prestim+params(exp_num(nn)).onset)),2)'... 
+%         sum(unitinfo(nn).rast(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)}),1000*params(exp_num(nn)).prestim+1:1000*(params(exp_num(nn)).prestim+params(exp_num(nn)).onset)),2)'],...
+%         [ones(1,length(intersect(prefori_trials{i},nolight_trials{exp_num(nn)}))) 2*ones(1,length(intersect(blank_trials{exp_num(nn)},nolight_trials{exp_num(nn)})))],'off');         % significance of visual response (100ms immediately following visual stimulus onset in blank vs. visual trials)
+%     for lc = 1:length(lightconds{exp_num(nn)})-1
+%         light_sig(i,lc) = kruskalwallis([sum(unitinfo(nn).rast(nolight_trials{exp_num(nn)},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)))+params(exp_num(nn)).lighttime*1000),2)'...       % currently using ALL light trials to evaluate light significance (visual+blank)
+%             sum(unitinfo(nn).rast(light_trials{exp_num(nn)}{lc},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)))+params(exp_num(nn)).lighttime*1000),2)'],...
+%             [ones(1,length(nolight_trials{exp_num(nn)})) 2*ones(1,length(light_trials{exp_num(nn)}{lc}))],'off');    % significance of light-evoked response (evoked periods of 500ms in nolight vs. light trials (each condition separately))
+%         light_sig_ons(i,lc) = kruskalwallis([sum(unitinfo(nn).rast(nolight_trials{exp_num(nn)},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)+params(exp_num(nn)).onset))),2)'...
+%             sum(unitinfo(nn).rast(light_trials{exp_num(nn)}{lc},round(1000*(params(exp_num(nn)).av_light_start(lc)))+1:round(1000*(params(exp_num(nn)).av_light_start(lc)+params(exp_num(nn)).onset))),2)'],...
+%             [ones(1,length(nolight_trials{exp_num(nn)})) 2*ones(1,length(light_trials{exp_num(nn)}{lc}))],'off');         % significance of light-evoked response at light onset (100ms after light onset in nolight vs light trials (each condition separately))
+%     end
     
    % next, check tuning significance and get tuning curves
      if length(oris)>4        % DON'T calc tuning for experiments with only 4 (or fewer) orientations
@@ -304,24 +324,82 @@ for i = 1:length(clean_units)      % for each unit
     end
 end
 
+
 distfromlastch = nan(1,length(clean_units));
 distfromfirstch = distfromlastch;
 count=1;
-vis_units = find(vis_sig<.05);
-unit_chk = 1:length(clean_units);
-clean_units = clean_units(unit_chk);
-distfromlastch = distfromlastch(unit_chk);          % only includes GOOD units
-distfromfirstch = distfromfirstch(unit_chk);          % only includes GOOD units
-tuning_curve=tuning_curve(unit_chk);
-prefdir_deg = prefdir_deg(unit_chk);
-prefori_trials = prefori_trials(unit_chk);
-vis_sig = vis_sig(unit_chk);
-vis_sig_ons = vis_sig_ons(unit_chk);
-light_sig = light_sig(unit_chk,:);
-light_sig_ons = light_sig_ons(unit_chk,:);
-tuning_curve_collapse = tuning_curve_collapse(unit_chk,:,:);
-tuned_sig = tuned_sig(unit_chk,:);
-FRb = FRb(unit_chk);
+shk = [];
+for n=1:length(params)
+    if isfield(waveforms(exp_num==n),'shank')
+        shk_tmp = [waveforms(exp_num==n).shank];
+        if isempty(shk_tmp); shk_tmp = zeros(1,sum(exp_num==n)); end    % if single shank probe, shank field may be empty
+    else
+        shk = zeros(1,sum(exp_num==n));
+    end
+    shk = [shk shk_tmp];
+end
+
+% get probe info (NEW 3/26/19)
+% p = eval(sprintf('probemap_%s_func',probe));
+p = eval('probemap_64D_bottom_func');
+Zchan = flipud(sort(p.z(p.shaft==1))); % from top to bottom (bottom=0)
+for n = 1:length(params)        % for each exp
+    for sh = 1:length(shanks{n})    % for each shank in exp
+        shk_units{count} = find((exp_num(clean_units)==n) & (shk(clean_units)==shanks{n}(sh)));
+        vischs = sort([waveforms(clean_units(shk_units{count})).max_ch]);
+        firstch(count) = min(vischs);
+        if firstch > 1
+            if Zchan(firstch(count))==Zchan(firstch(count)-1) % for probes in hexagonal orientation, might leave out channel that is actually same height as "firstch"
+                firstch(count) = firstch(count)-1;
+            end
+        end
+        lastch(count) = max(vischs);
+        if lastch < length(Zchan)
+            if Zchan(lastch(count))==Zchan(lastch(count)+1)
+                lastch(count) = lastch(count)+1;
+            end
+        end
+        distfromlastch(shk_units{count}) = Zchan(lastch(count))-Zchan([waveforms(clean_units(shk_units{count})).max_ch]);   % negative values are actually good (above last ch)
+        distfromfirstch(shk_units{count}) = Zchan(firstch(count))-Zchan([waveforms(clean_units(shk_units{count})).max_ch]); % positive values are below first ch
+        count = count+1;
+    end
+end
+
+% distfromlastch = nan(1,length(clean_units));
+% distfromfirstch = distfromlastch;
+% count=1;
+vis_units = find(vis_sig<.025|vis_sig_ons<.025);      % CHANGED 7/21/19 (.025 b/c bonferroni correction for 2 tests)
+unit_chk = clean_units;
+
+%% NEW 7/21/19 - check "clean_units" across experiments
+% files = dir(main_dir);
+% files = {files.name};
+% othermat = cellfun(@(x) contains(x,pop)&&contains(x,'.mat'),files);
+% clean_units_expnum = exp_num(clean_units);
+% save(sprintf('%s/%s_%s_cleanunits.mat',main_dir,pop,mani),'clean_units','clean_units_expnum')    % save after locating other mats and before changing clean_units
+% others = find(othermat);
+% for f=1:sum(othermat)
+%     other_clean{f} = load(fullfile(main_dir,files{others(f)})); % doesn't matter if current .mat is included since it's intersecting
+%     if length(unique(clean_units_expnum))~= length(unique(other_clean{f}.clean_units_expnum))   % TEMP - currently assumes that if there are inequal experiment numbers, the last experiment is the one that doesn't have both experimental runs
+%         incl_expnums = min(length(unique(clean_units_expnum)),length(unique(other_clean{f}.clean_units_expnum)));
+%         clean_units = [intersect(other_clean{f}.clean_units(other_clean{f}.clean_units_expnum<=incl_expnums),clean_units(clean_units_expnum<=incl_expnums)) clean_units(clean_units_expnum>incl_expnums)];
+%     else
+%         clean_units = intersect(other_clean{f}.clean_units,clean_units);
+%     end
+% end
+% adjust for new clean_units
+distfromlastch = distfromlastch(ismember(unit_chk,clean_units));          % only includes GOOD units
+distfromfirstch = distfromfirstch(ismember(unit_chk,clean_units));          % only includes GOOD units
+tuning_curve=tuning_curve(ismember(unit_chk,clean_units));
+prefdir_deg = prefdir_deg(ismember(unit_chk,clean_units));
+prefori_trials = prefori_trials(ismember(unit_chk,clean_units));
+vis_sig = vis_sig(ismember(unit_chk,clean_units));
+vis_sig_ons = vis_sig_ons(ismember(unit_chk,clean_units));
+light_sig = light_sig(ismember(unit_chk,clean_units),:);
+light_sig_ons = light_sig_ons(ismember(unit_chk,clean_units),:);
+tuning_curve_collapse = tuning_curve_collapse(ismember(unit_chk,clean_units),:,:);
+tuned_sig = tuned_sig(ismember(unit_chk,clean_units),:);
+FRb = FRb(ismember(unit_chk,clean_units));
 
 %% test for light modulation
 % verified this combo of reshape, cell2mat and arrayfun yields accurate
@@ -389,16 +467,22 @@ end
 %     print(gcf, '-dpng',fullfile(fig_dir,'Spike count ratio'))
 % end
 
-%%
+%% get layer
+layer = [unitinfo(clean_units).layer];
+
+chs_23 = find(layer == 2.5);
+chs_4 = find(layer == 4);
+chs_5 = find(layer == 5);
+chs_55 = find(layer == 5.5);
+chs_6 = find(layer == 6);
+infgran = [chs_5 chs_55 chs_6];
+
+%% trains - paired pulse analysis
+cd(fig_dir)
 area_color = [.5 .5 .5];
 if contains(mani,'trains')    
     all_lightconds = [lightconds{:}];
-    % check if different experiments used same light trains conditions
-%     if length(unique(max(all_lightconds)))==1    % if max lightcond was uniform across experiments (this is kinda a hack for M7 experiment...)
-%        highf_cond = 2;
-%     else
-%        highf_cond = 1;
-%     end
+
     for ii=1:sum(mean(all_lightconds,2)>1)      % for  light conditions >1Hz
         cons_exps = find(all_lightconds(ii+2,:)==mode(all_lightconds(ii+2,:)));  % which experiments used consistent trains frequencies per condition
         resp_t_v{ii} = nan(length(clean_units),lightconds{1}(ii+2));
@@ -416,6 +500,12 @@ if contains(mani,'trains')
        nonans_bl{ii} = ~isnan(ppr_bl{ii}(:,1));  
         nonans_v{ii} = ~isnan(ppr_v{ii}(:,1));
 
+        % check if paired pulse ratios are significantly different from 1
+        for x=1:size(ppr_v{ii},2)
+            [p_v{ii}(x)] = signtest(ppr_v{ii}(:,x),1);      % check if paired pulse ratios are significantly different from 1
+            [p_bl{ii}(x)] = signtest(ppr_bl{ii}(:,x),1);    % this and above changed 7/21/19 from signrank to signtest (makes less assumptions about data distribution - MAK)
+        end
+        
         figure;
         h=histogram(ppr_bl{ii}(:,1),'binwidth',.25,'facecolor','b');
         ylim([0 max(histcounts(ppr_bl{ii}(:,1),'binwidth',.25))+1])
@@ -444,36 +534,40 @@ if contains(mani,'trains')
        
 
         figure;
-        b=bar([1:lightconds{1}(ii+2)-1],nanmedian(ppr_bl{ii}));
+        b_bl=bar([1:lightconds{1}(ii+2)-1],nanmedian(ppr_bl{ii}));
         ppiqr_bl = iqr(ppr_bl{ii}(nonans_bl{ii},:))/2;
-        set(b,'XData',[2:lightconds{1}(ii+2)],'facecolor',area_color)
+        set(b_bl,'XData',[2:lightconds{1}(ii+2)],'facecolor',area_color)
         xax = get(gca,'xlim');
         line(xax,[1 1],'linestyle','--','color','k','linewidth',2)
         hold on;
         for x=1:lightconds{1}(ii+2)-1
     %         plot((x+1)*ones(1,sum(~isnan(ppr_bl(:,x)))),ppr_bl(~isnan(ppr_bl(:,x)),x),'k.')
-            line([b.XData(x) b.XData(x)],[b.YData(x) b.YData(x)+ppiqr_bl(x)],'color','k')
+            line([b_bl.XData(x) b_bl.XData(x)],[b_bl.YData(x) b_bl.YData(x)+ppiqr_bl(x)],'color','k')
         end
         set(gca,'fontsize',18,'linewidth',2)
         ylabel('Spike count ratio (pulse x/pulse 1)','fontsize',16)
         xlabel('Pulse number','fontsize',16)
+        yax_bl = get(gca,'ylim');
+        plot(b_bl.XData(p_bl{ii}<.05),(yax_bl(2)-.1*yax_bl(2))*ones(1,sum(p_bl{ii}<.05)),'k*')   % black asterisk above all sig vals in ppr figs
         print(gcf, '-dpng',sprintf('Spike count ratio %dHz (blanks)',lightconds{1}(ii+2)))
         print(gcf, '-painters','-depsc',sprintf('Spike count ratio %dHz (blanks)',lightconds{1}(ii+2)))
 
         figure;
-        b=bar([1:lightconds{1}(ii+2)-1],nanmedian(ppr_v{ii}));
+        b_v=bar([1:lightconds{1}(ii+2)-1],nanmedian(ppr_v{ii}));
         ppiqr_v = iqr(ppr_v{ii}(nonans_v{ii},:))/2;
-        set(b,'XData',[2:lightconds{1}(ii+2)],'facecolor',area_color)
+        set(b_v,'XData',[2:lightconds{1}(ii+2)],'facecolor',area_color)
         xax = get(gca,'xlim');
         line(xax,[1 1],'linestyle','--','color','k','linewidth',2)
         hold on;
         for x=1:lightconds{1}(ii+2)-1
     %         plot((x+1)*ones(1,sum(~isnan(ppr_v(:,x)))),ppr_v(~isnan(ppr_v(:,x)),x),'k.')
-            line([b.XData(x) b.XData(x)],[b.YData(x) b.YData(x)+ppiqr_v(x)],'color','k')
+            line([b_v.XData(x) b_v.XData(x)],[b_v.YData(x) b_v.YData(x)+ppiqr_v(x)],'color','k')
         end
         set(gca,'fontsize',18,'linewidth',2)
         ylabel('Spike count ratio (pulse x/pulse 1)','fontsize',16)
         xlabel('Pulse number','fontsize',16)
+        yax_v = get(gca,'ylim');
+        plot(b_v.XData(p_v{ii}<.05),(yax_v(2)-.1*yax_v(2))*ones(1,sum(p_v{ii}<.05)),'k*')   % black asterisk above all sig vals in ppr figs
         print(gcf, '-dpng',sprintf('Spike count ratio %dHz (visual)',lightconds{1}(ii+2)))
         print(gcf, '-painters','-depsc',sprintf('Spike count ratio %dHz (visual)',lightconds{1}(ii+2)))
 
@@ -504,7 +598,18 @@ if contains(mani,'trains')
         xlabel('Pulse number','fontsize',16)
         print(gcf, '-dpng',sprintf('Pulse response duration %dHz (visual)',lightconds{1}(ii+2)))
         print(gcf,'-painters','-depsc',sprintf('Pulse response duration %dHz (visual)',lightconds{1}(ii+2)))
+        
+        % save stats
+        if ii==1
+            fileID = fopen('trains_PPRstats.txt','w');
+        else
+            fileID = fopen('trains_PPRstats.txt','a');
+        end
+        fprintf(fileID,'Signed-rank test of paired-pulse ratios, %d Hz, visual trials: %s \r\n',lightconds{1}(ii+2),num2str(round(p_v{ii},4)));
+        fprintf(fileID,'Signed-rank test of paired-pulse ratios, %d Hz, blank trials: %s \r\n',lightconds{1}(ii+2),num2str(round(p_bl{ii},4)));
+        fclose(fileID);
     end
+    
 end
 
 %% F1/F0 response analysis
@@ -553,13 +658,13 @@ for i = 1:length(clean_units)
     baseline_rast = unitinfo(clean_units(i)).rast(usetrials,1:round((params(exp_num(clean_units(i))).av_light_start(1)*1000)/10)*10-10);        % using visually-evoked activity in nolight trials as baseline
     ev_rast = unitinfo(clean_units(i)).rast(usetrials,round((params(exp_num(clean_units(i))).av_light_start(1)*1000)/10)*10:round((params(exp_num(clean_units(i))).av_light_start(1)*1000)/10)*10-1+size(baseline_rast,2));
             [saltp(i) saltI(i)] = salt(baseline_rast,ev_rast,1/1000,.01);   % within 10ms window
-%             [p_5(lc) I_5(lc)] = salt(baseline_rast,ev_rast,1/1000,.005);    % within 5ms window
-%             [p_2(lc) I_2(lc)] = salt(baseline_rast,ev_rast,1/1000,.002);    % within 2ms window
+            [p_5(i) I_5(i)] = salt(baseline_rast,ev_rast,1/1000,.005);    % within 5ms window
+%             [p_2(i) I_2(i)] = salt(baseline_rast,ev_rast,1/1000,.002);    % within 2ms window
 end
 %%
 cd(fig_dir)
 % get different cell types
-visual_cells = find((vis_sig < .05)|(vis_sig_ons < .05));
+visual_cells = find((vis_sig < .025)|(vis_sig_ons < .025));
 nonvisual_cells = find(~ismember(1:length(vis_sig),visual_cells));
 light_cells= find(min(light_sig,[],2)<.05);   % find cells with significant effect in any light condition
 tuned_cells = find(tuned_sig(:,1) < .05);
@@ -576,8 +681,18 @@ trans_cells = find(vis_sig_ons<.05 & vismod_on'>0 & vis_sig>=.05 | vis_sig_ons<.
 % orthFR_delta(isnan(orthFR_delta)) = 0;
 % prefFR_delta(isnan(prefFR_delta)) = 0;
 % 
-reg_cells = find(t2p_t>=.45);
-FS_cells = find(t2p_t<.45);
+reg_cells = find(t2p_t>=.475);
+FS_cells = find(t2p_t<.475);
+
+figure; 
+hold on;
+plot(t2p_t,t2p_r,'o')
+xlabel('trough-to-peak time (ms)','Fontsize',18)
+ylabel('trough-to-peak-ratio','Fontsize',18)
+yax=get(gca,'ylim');
+line([.475 .475],yax,'linestyle','--','color','k')
+print(gcf, '-dpng','FSvsRS')
+print(gcf, '-painters','-depsc','FSvsRS')
 
 
 % % find diff cell types
@@ -697,20 +812,11 @@ tuningsig_vals = [osiCVsig_tuned_low osiCVsig_tuned_low_dir; osiCVsig_tuned_high
     dsiCVsig_vis_low dsiCVsig_vis_low_dir; dsiCVsig_vis_high dsiCVsig_vis_high_dir; dsisig_vis_low dsisig_vis_low_dir; dsisig_vis_high dsisig_vis_high_dir];
 
 %% by layer
-layer = [unitinfo(clean_units).layer];
+barplot_by_layer(lightmod(reg_cells,:)',layer(reg_cells),ones(1,length(layer(reg_cells))),'Light modulation index','Lightmodulation (RS evoked - all conditions)')
+% barplot_by_layer(lightmod(reg_cells,3)',layer(reg_cells),ones(1,length(layer(reg_cells))),'Light modulation index','Lightmodulation (evoked - high)')
 
-chs_23 = find(layer == 2.5);
-chs_4 = find(layer == 4);
-chs_5 = find(layer == 5);
-chs_55 = find(layer == 5.5);
-chs_6 = find(layer == 6);
-infgran = [chs_5 chs_55 chs_6];
-
-barplot_by_layer(lightmod(reg_cells,1)',layer(reg_cells),ones(1,length(layer(reg_cells))),'Light modulation index','Lightmodulation (evoked - low)')
-barplot_by_layer(lightmod(reg_cells,2)',layer(reg_cells),ones(1,length(layer(reg_cells))),'Light modulation index','Lightmodulation (evoked - high)')
-
-barplot_by_layer(lightmod(FS_cells,2)',layer(FS_cells),ones(1,length(layer(FS_cells))),'Light modulation index','Lightmodulation (FS -evoked)')
-barplot_by_layer(lightmod_early(FS_cells,2)',layer(FS_cells),ones(1,length(layer(FS_cells))),'Light modulation index','Lightmodulation (FS - evoked - early)')
+barplot_by_layer(lightmod(FS_cells,:)',layer(FS_cells),ones(1,length(layer(FS_cells))),'Light modulation index','Lightmodulation (FS evoked - all conditions)')
+% barplot_by_layer(lightmod_early(FS_cells,2)',layer(FS_cells),ones(1,length(layer(FS_cells))),'Light modulation index','Lightmodulation (FS - evoked - early)')
 
 
 %%
@@ -814,7 +920,7 @@ print(gcf, '-dpng','lightmodbydepth_top')
 
 
 %%
-if contains(exp_type,'halo','ignorecase',1)
+if contains(mani,'halo','ignorecase',1)
     color_mat = [0 0 0; .9 0 .3; 0.6350, 0.0780, 0.1840]; % for graphing purposes (first is black, last is green)
     nonvis_color_mat = [.5 .5 .5; 1 .75 .75; 0.7, 0.5, 0.5];      % make red for halo
 else
@@ -828,30 +934,30 @@ end
 % plot_scatter(FRonset(:,[1 end]), shk(clean_units), {[.6 .6 .6],[0 0 1], [1 0 0], [0 1 0]}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FRonset_high_byshk', {'Most medial','','','Most lateral'}, 1)
 
 % FR light vs no light - visual vs nonvisual units
-plot_scatter(FRev(:,[1 2]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
-plot_scatter(FRev(:,[1 end]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
+plot_scatter(FRev(:,[1 2]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRev(:,[1 end]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
 % if strcmpi(exp_type,'trains')
-%     plot_scatter(FRev(:,[1 end-1]), (vis_sig < .05)|(vis_sig_ons < .05), {[.7 .8 .7],[.7 0 1]}, 'Spks/s (light OFF)', 'Spks/s (light ON - med)', 'FR_med_byvis', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
+%     plot_scatter(FRev(:,[1 end-1]), (vis_sig < .025)|(vis_sig_ons < .025), {[.7 .8 .7],[.7 0 1]}, 'Spks/s (light OFF)', 'Spks/s (light ON - med)', 'FR_med_byvis', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
 % end
 
 % FR light vs no light - visual vs nonvisual units, blank trials
-plot_scatter(FRbl(:,[1 2]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis_bl', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
-plot_scatter(FRbl(:,[1 end]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis_bl', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
+plot_scatter(FRbl(:,[1 2]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis_bl', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRbl(:,[1 end]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis_bl', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
 
-plot_scatter(FRvison(:,[1 2]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis_onset', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
-plot_scatter(FRvison(:,[1 end]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis_onset', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
+plot_scatter(FRvison(:,[1 2]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis_onset', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRvison(:,[1 end]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis_onset', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
 
 % FR light vs no light - visual vs nonvisual units, preferred trials
-plot_scatter(FRpref(:,[1 2]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis_pref', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
-plot_scatter(FRpref(:,[1 end]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis_pref', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
+plot_scatter(FRpref(:,[1 2]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - low)', 'FR_low_byvis_pref', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRpref(:,[1 end]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Spks/s (light OFF)', 'Spks/s (light ON - high)', 'FR_high_byvis_pref', {'Nonvisual','Visual'}, 1)     % last lightcond pwr
 
 % change in preferred FR light vs no light - visual vs nonvisual units
-plot_scatter(FRpref(:,[1 2])-FRbl(:,[1 2]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked FR\Delta (Spks/s-light ON-low)', 'FR_low_vischange_pref', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
-plot_scatter(FRpref(:,[1 end])-FRbl(:,[1 end]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked change in FR (Spks/s-light ON-high)', 'FR_high_vischange_pref', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRpref(:,[1 2])-FRbl(:,[1 2]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked FR\Delta (Spks/s-light ON-low)', 'FR_low_vischange_pref', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRpref(:,[1 end])-FRbl(:,[1 end]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked change in FR (Spks/s-light ON-high)', 'FR_high_vischange_pref', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
 
 % change in evoked FR light vs no light - visual vs nonvisual units
-plot_scatter(FRev(:,[1 2])-FRbl(:,[1 2]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked FR\Delta (Spks/s-light ON-low)', 'FR_low_vischange', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
-plot_scatter(FRev(:,[1 end])-FRbl(:,[1 end]), (vis_sig < .05)|(vis_sig_ons < .05), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked FR\Delta (Spks/s-light ON-high)', 'FR_high_vischange', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRev(:,[1 2])-FRbl(:,[1 2]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(2,:),color_mat(2,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked FR\Delta (Spks/s-light ON-low)', 'FR_low_vischange', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
+plot_scatter(FRev(:,[1 end])-FRbl(:,[1 end]), (vis_sig < .025)|(vis_sig_ons < .025), {nonvis_color_mat(3,:),color_mat(3,:)}, 'Vis-evoked FR\Delta (Spks/s-light OFF)', 'Vis-evoked FR\Delta (Spks/s-light ON-high)', 'FR_high_vischange', {'Nonvisual','Visual'}, 1)     % first lightcond pwr
 
 
 %% average PSTHs

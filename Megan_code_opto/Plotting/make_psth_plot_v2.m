@@ -14,6 +14,7 @@ function make_psth_plot_v2(psth,binsize,prestim,stimtime,totaltime,all_light_tri
     % experiment, should be [])
     
 color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2;0 .8 1; 0 0 1]; % for graphing purposes (first is black, last is green)
+% color_mat = [0 0 0; .9 0 .3; 0.50, 0.0780, 0.10]; % for halo (red)
 
 edges_stim = [-prestim:binsize:(totaltime-prestim-binsize)]'; % x signifies the timepoint of the START of the bin
 for c = 1:size(psth,1)

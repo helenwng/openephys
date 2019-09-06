@@ -250,7 +250,7 @@ gaussFilterNorm = gaussFilter';
 
 x = ifft(fft(x).*abs(fft(gaussFilterNorm)));
 
-thresh =(max(x)+min(x))*.5;
+thresh =(max(x)+min(x))*.75;    % changed from .5 mak 6/28/19
 
 x = (sign(x-thresh) + 1)/2;
 

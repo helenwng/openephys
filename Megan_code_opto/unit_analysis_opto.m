@@ -184,7 +184,7 @@ if ~isempty(rez)
     if ~exist('rez.mat','file')     % if not in current dir (for when concatenating files)
         exp_path = fileparts(exp_path);
     end
-    [waveforms_microV,max_ch,shank] = readWaveformsFromRez(unit,exp_path,rez);      % default to read waveforms from Rez
+    [waveforms_microV,max_ch,shank] = readWaveformsFromRez_K2(unit,exp_path,rez);      % default to read waveforms from Rez
 elseif exist(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)),'file')
     load(sprintf('/%s/Cluster_%s_waveforms.mat',exp_path,num2str(unit)));
 else

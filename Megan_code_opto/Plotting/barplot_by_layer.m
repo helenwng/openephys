@@ -19,16 +19,29 @@ data_5 = data2plot(:,chs_5);
 data_55 = data2plot(:,chs_55);
 data_6 = data2plot(:,chs_6);
 
-mean_data(1,:) = nanmean(data_23,2);
-mean_data(2,:) = nanmean(data_4,2);
-mean_data(3,:) = nanmean(data_5,2);
-mean_data(4,:) = nanmean(data_55,2);
-mean_data(5,:) = nanmean(data_6,2);
-se_data(1,:) = nanstd(data_23,0,2)/sqrt(size(data_23,2));
-se_data(2,:) = nanstd(data_4,0,2)/sqrt(size(data_4,2));
-se_data(3,:) = nanstd(data_5,0,2)/sqrt(size(data_5,2));
-se_data(4,:) = nanstd(data_55,0,2)/sqrt(size(data_55,2));
-se_data(5,:) = nanstd(data_6,0,2)/sqrt(size(data_6,2));
+% % means and SE:
+% mean_data(1,:) = nanmean(data_23,2);
+% mean_data(2,:) = nanmean(data_4,2);
+% mean_data(3,:) = nanmean(data_5,2);
+% mean_data(4,:) = nanmean(data_55,2);
+% mean_data(5,:) = nanmean(data_6,2);
+% se_data(1,:) = nanstd(data_23,0,2)/sqrt(size(data_23,2));
+% se_data(2,:) = nanstd(data_4,0,2)/sqrt(size(data_4,2));
+% se_data(3,:) = nanstd(data_5,0,2)/sqrt(size(data_5,2));
+% se_data(4,:) = nanstd(data_55,0,2)/sqrt(size(data_55,2));
+% se_data(5,:) = nanstd(data_6,0,2)/sqrt(size(data_6,2));
+
+% medians and IQR:
+mean_data(1,:) = nanmedian(data_23,2);
+mean_data(2,:) = nanmedian(data_4,2);
+mean_data(3,:) = nanmedian(data_5,2);
+mean_data(4,:) = nanmedian(data_55,2);
+mean_data(5,:) = nanmedian(data_6,2);
+se_data(1,:) = iqr(data_23,2)/2;
+se_data(2,:) = iqr(data_4,2)/2;
+se_data(3,:) = iqr(data_5,2)/2;
+se_data(4,:) = iqr(data_55,2)/2;
+se_data(5,:) = iqr(data_6,2)/2;
 
 fig = figure;
 h = bar(mean_data);
@@ -56,7 +69,9 @@ set(gca,'XTicklabel',{'L2/3', 'L4', 'L5A', 'L5B', 'L6'},'Fontsize',16)
 % if length(h) > 1
 %     set(h(2),'FaceColor','b','EdgeColor','b');
 % end
-color_mat = [0 0 0; 0 0 1; 0 .8 1; 0 0.5 .4; 0 .7 .2]; % for graphing purposes (first is black, last is green)
+% color_mat = [0 0 0; 0 0 1; 0 .8 1; 0 0.5 .4; 0 .7 .2]; % for graphing purposes (first is black, last is green)
+color_mat = [0 .8 1; 0 0 1; 0 0.5 .4];   % first is light blue, last is green
+% color_mat = [.9 0 .3; 0.50, 0.0780, 0.10]; % for halo (red)
 for i = 1:length(h)
     set(h(i),'FaceColor',color_mat(i,:),'EdgeColor',color_mat(i,:));
 end
@@ -74,7 +89,7 @@ SUs = find(clusttype==1);
 MUs = find(clusttype==2);
 
 if length(h) > 1
-    plot(layer_ind(:,SUs),data2plot(:,SUs),'.-','color',[.5 .5 .5],'MarkerSize',24)
+    plot(layer_ind(:,SUs),data2plot(:,SUs),'.','color',[.5 .5 .5],'MarkerSize',16)
     plot(layer_ind(:,MUs),data2plot(:,MUs),'rs--','MarkerSize',24)
 else
     plot(layer_ind(:,SUs),data2plot(:,SUs),'.','color',[.5 .5 .5],'MarkerSize',24)
@@ -82,13 +97,18 @@ else
 end
 
 xax = get(gca,'xlim');
-line(xax,[-1/3 -1/3],'linestyle','--')
+ylim([-1 1])
+% line(xax,[-1/3 -1/3],'linestyle','--','color','k')
+% line(xax,[1/3 1/3],'linestyle','--','color','k')
 
 % paired ttest
 % laynums = unique(layers);
 % for l = 1:length(laynums)
 %     [h(l),p(l)] = ttest(data2plot(1,find(layers==laynums(l))),data2plot(2,find(layers==laynums(l))));
 % end
+
+% NEW (6/14/19) - rotate plot so shows layers top-bottom on y-axis
+view(90,90)
 
 print(fig, '-dpng',sprintf('%s%s',title,'_bylayer'))
 print2eps(sprintf('%s%s',title,'_bylayer'),fig)

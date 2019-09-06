@@ -83,12 +83,17 @@ disp('Loading clustering data...')
 % load kilosort data
 spike_times = readNPY('spike_times.npy');           % here, spike times from ALL clusters
 clusters = readNPY('spike_clusters.npy');
-if exist('cluster_groups.csv','file')
-    fid = fopen('cluster_groups.csv');
-elseif exist('..\cluster_groups.csv','file')
-    % get cluster group
+if exist('..\cluster_group.tsv','file')
+    fid=fopen('..\cluster_group.tsv');     % new phy2 output
+else
     fid = fopen('..\cluster_groups.csv');
 end
+% if exist('cluster_groups.csv','file')
+%     fid = fopen('cluster_groups.csv');
+% elseif exist('..\cluster_groups.csv','file')
+%     % get cluster group
+%     fid = fopen('..\cluster_groups.csv');
+% end
 
 % read column headers
 C_text = textscan(fid, '%s', 1, 'delimiter', ',');
@@ -139,7 +144,7 @@ for n = 1:num_reps
     bw(bw==2) = 1;  % 2 means WHITE
     for nn = 1:num_stim
         stim_trials((n-1)*num_stim+nn,1:3) = [xx(nn) yy(nn) bw(nn)]; 
-        if sum(light(stim_times((n-1)*num_stim+nn):stim_times((n-1)*num_stim+nn)+T)) > floor(max(light))*min(T,light_T)     
+        if sum(light(stim_times((n-1)*num_stim+nn):stim_times((n-1)*num_stim+nn)+T)) > round(max(light)-std(light),2)*min(T,light_T)     
 %         if find(light(stim_times((n-1)*num_stim+1):stim_times((n)*num_stim))>4) 	% TEMP
             stim_trials((n-1)*num_stim+nn,4) = 1;
         end
@@ -178,7 +183,7 @@ for i = 1:num_units
     unit_times = spike_times(clusters==good_units(i));
     unit_times_ds = floor(unit_times./(amp_sr/1000));   % change sample #s to account for downsampling
     unit_times_ds = unit_times_ds + 1; % has to be +1 because spike_times starts at 0, but the min possible field_trials value could be 1
-    [~,~,shank(i)] = readWaveformsFromRez(good_units(i),full_exp_path,rez);      % default to read waveforms from Rez
+    [~,~,shank(i)] = readWaveformsFromRez_K2(good_units(i),full_exp_path,rez);      % default to read waveforms from Rez
     [psth_norm{i}, rfMap{i}, stats(i)] = sparsenoiseRF(unit_times_ds,stim_times,binsize,T,stim_trials,stim_key);
     % save figures
     save_name = sprintf('%s\\%s_%s_Cluster%d',all_fig_dir,exp_name,strcat('shank',num2str(shank(i))),good_units(i));

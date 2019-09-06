@@ -12,6 +12,7 @@ function make_raster_plot_v2(spike_raster,prestim,totaltime,light_trialtypes,lig
 
 num_trials = size(spike_raster,1);
     color_mat = [0 0 0; 0 .8 1; 0 0 1; 0 0.5 .4; 0 .7 .2; 0 .8 1; 0 0 1]; % for graphing purposes (first is black, last is green)
+% color_mat = [0 0 0; .9 0 .3; 0.50, 0.0780, 0.10]; % for halo (red)
 
 time_vec = linspace(-prestim,totaltime-prestim,size(spike_raster,2));      % for x-axis 
 cond_colors = ones(1,num_trials);      % just in case you have multiple conditions
